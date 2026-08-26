@@ -1,0 +1,4 @@
+(executable
+ (name check)
+ (modules state frame props check)
+ (libraries ctlk_topos))
