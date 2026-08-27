@@ -1,0 +1,5 @@
+error[OCAML-FRONTEND]: This expression has type "int Core.option" but an expression was expected of type "(default:'a -> 'b) Core.option" Type "int" is not compatible with type "default:'a -> 'b"
+ --> /Users/oobi/Documents/topcoat-oracle/research/probes/m09_assoc_no_fold.ml:4:26
+  |
+4 |   Option.value ~default:0 (assoc_opt (fun a b -> a = b) 2 ((1, 10) :: (2, 20) :: []))
+  |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

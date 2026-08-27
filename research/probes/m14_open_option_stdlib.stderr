@@ -1,0 +1,6 @@
+error[E0103]: cannot `open Option`: it names a bundled stdlib module
+ --> /Users/oobi/Documents/topcoat-oracle/research/probes/m14_open_option_stdlib.ml:1:0
+  |
+1 | open Option
+  | ^^^^^^^^^^^
+  = help: The bundled stdlib is auto-opened; use qualified access (e.g. `Fixed.mul`) instead of `open`.

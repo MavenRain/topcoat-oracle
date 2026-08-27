@@ -1,0 +1,5 @@
+error[OCAML-FRONTEND]: This expression has type "int Core.option" but an expression was expected of type "(default:'a -> 'b) Core.option" Type "int" is not compatible with type "default:'a -> 'b"
+ --> /Users/oobi/Documents/topcoat-oracle/research/probes/m05_nth_value.ml:3:43
+  |
+3 | let entrypoint _ = Option.value ~default:0 (nth_opt (1 :: 2 :: []) 1)
+  |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^

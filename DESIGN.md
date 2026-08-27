@@ -145,16 +145,18 @@ Phase A: foundations and model
   Gate: check.exe runs. [DONE]
 - M06 model green: all expectations met, negative control fails where
   it must. Gate: check.exe exit 0. [DONE]
-- M07 gates.sh v1: build + runtest + model check. Gate: exit 0.
+- M07 gates.sh v1: build + runtest + model check. Gate: exit 0. [DONE]
 - M08 omlz dual-gate probe: run `omlz check` on a probe core file via
   the zxcaml wrapper; wire zxlint. Gate: recorded verdict, degrade
-  documented if omlz unavailable.
+  documented if omlz unavailable. [DONE: DEGRADED-INACTIVE, verdict +
+  minimal repros in research/m08-omlz-verdict.md; zxlint wired]
 
 Phase B: dual-compiled core
 - M09 core/prelude.ml: total combinators (nth_opt, div_opt, fold,
   map). Gate: dune + zxlint (+ omlz check when active).
 - M10 core/ast.ml: Ty, closed Method enum, Expr, Lit with F64_bits of
-  int. Gate: build; matches exhaustive.
+  (hi32, lo32) int pair (OCaml native int is 63-bit, one int cannot
+  hold an IEEE binary64 pattern). Gate: build; matches exhaustive.
 - M11 core/wf.ml: type-shape checker returning result. Gate: unit
   vectors, positive and negative.
 - M12 core/obs.ml: observation ADT + canonical encoding. Gate: unit

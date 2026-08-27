@@ -1,0 +1,5 @@
+error[OCAML-FRONTEND]: Unbound module "Prelude"
+ --> /Users/oobi/Documents/topcoat-oracle/research/probes/m12_qualified_no_open.ml:1:19
+  |
+1 | let entrypoint _ = Prelude.len (1 :: 2 :: [])
+  |                   ^^^^^^^^^^^
