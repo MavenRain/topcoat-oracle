@@ -1,3 +1,11 @@
 (test
  (name test_core)
  (libraries oracle_core alcotest))
+
+(test
+ (name test_printer)
+ (libraries oracle_core alcotest))
+
+(test
+ (name test_shell)
+ (libraries oracle_core oracle_shell alcotest qcheck-core qcheck-alcotest))

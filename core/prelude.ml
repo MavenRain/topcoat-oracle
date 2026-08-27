@@ -43,6 +43,12 @@ let rec list_eq eq xs ys =
 
 let concat parts = fold (fun acc s -> acc ^ s) "" parts
 
+(* Separator-joined concatenation; empty list renders empty. *)
+let joined sep parts =
+  match parts with
+  | [] -> ""
+  | p :: rest -> p ^ concat (map (fun q -> sep ^ q) rest)
+
 let digit_str d =
   match d with
   | 0 -> "0" | 1 -> "1" | 2 -> "2" | 3 -> "3" | 4 -> "4"

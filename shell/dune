@@ -1,0 +1,4 @@
+(library
+ (name oracle_shell)
+ (wrapped false)
+ (libraries oracle_core))
