@@ -184,13 +184,34 @@ let call_parts e =
   | E_loop _ | E_while _ | E_break | E_continue | E_return_unit
   | E_return _ | E_closure _ | E_async_closure _ | E_await _ -> None
 
-let or_opt a b = Option.fold ~none:b ~some:(fun x -> Some x) a
+(* `b` is a thunk (`int -> 'a option`, called as `b 0`) so the callee
+   is not built unless `a` is None: Option.fold ~none forces its
+   argument eagerly, which recursed `minimal` on both result sides
+   even when the first one already answered. *)
+let or_opt a b = if Option.is_some a then a else b 0
 
 (* Parameter idents for a minimal closure: the body is closed, so the
    ids only need to exist; 900000+ keeps them visually apart from
    generated ids in repro output (any ids would be sound). *)
 let fresh_params ps =
-  rev (fold (fun acc t -> (900000 + len acc, t) :: acc) [] ps)
+  let counted =
+    fold
+      (fun acc t -> (fst acc + 1, (900000 + fst acc, t) :: snd acc))
+      (0, []) ps
+  in
+  rev (snd counted)
+
+(* Types the printer can name inside None::<T>: mirrors gen.ml's
+   turbofish_safe exactly (shell/gen.ml; core cannot depend on shell,
+   so the predicate is duplicated here). *)
+let rec turbofish_nameable t =
+  match t with
+  | T_f64 | T_bool | T_string | T_unit -> true
+  | T_option a -> turbofish_nameable a
+  | T_result (a, e) -> turbofish_nameable a && turbofish_nameable e
+  | T_signal a -> turbofish_nameable a
+  | T_tuple ts -> fold (fun ok x -> ok && turbofish_nameable x) true ts
+  | T_fn (_, _) | T_async_fn (_, _) | T_future _ -> false
 
 (* Smallest closed expression of a type, when the type is
    constructible under expr! at all: tuples are not (no
@@ -203,11 +224,13 @@ let rec minimal t =
   | T_bool -> Some (E_lit (L_bool false))
   | T_string -> Some (E_lit (L_str ""))
   | T_unit -> Some (E_block_unit [])
-  | T_option a -> Some (E_none a)
+  | T_option a ->
+      if turbofish_nameable a then Some (E_none a)
+      else Option.map (fun m -> E_some m) (minimal a)
   | T_result (a, e) ->
       or_opt
         (Option.map (fun m -> E_ok (m, e)) (minimal a))
-        (Option.map (fun m -> E_err (m, a)) (minimal e))
+        (fun _ -> Option.map (fun m -> E_err (m, a)) (minimal e))
   | T_tuple _ -> None
   | T_fn (ps, r) ->
       Option.map (fun m -> E_closure (fresh_params ps, r, m)) (minimal r)
@@ -281,12 +304,24 @@ and structural ret t e =
         ~some:(fun te -> map (fun a' -> E_some a') (go ret te a))
         (option_elem t)
   | E_ok (a, terr) ->
+      (* stored annotation is the error side (ast.ml); a rewrap under
+         a different target only stays wf when it still matches that
+         target's error side, since Wf takes the annotation verbatim
+         for a non-never payload and ignores it outright for a
+         never-shaped one *)
       Option.fold ~none:[]
-        ~some:(fun s -> map (fun a' -> E_ok (a', terr)) (go ret (fst s) a))
+        ~some:(fun s ->
+          if ty_eq terr (snd s) then
+            map (fun a' -> E_ok (a', terr)) (go ret (fst s) a)
+          else [])
         (result_sides t)
   | E_err (a, tok) ->
+      (* stored annotation is the ok side (ast.ml); same guard *)
       Option.fold ~none:[]
-        ~some:(fun s -> map (fun a' -> E_err (a', tok)) (go ret (snd s) a))
+        ~some:(fun s ->
+          if ty_eq tok (fst s) then
+            map (fun a' -> E_err (a', tok)) (go ret (snd s) a)
+          else [])
         (result_sides t)
   | E_call (f, args) ->
       let extract =
@@ -308,8 +343,21 @@ and structural ret t e =
   | E_method (recv, m, args) ->
       (match m with
        | M_clone ->
-           recv
-           :: map (fun r' -> E_method (r', M_clone, args)) (go ret t recv)
+           (* gen.ml's var_use clones exactly the move-hostile types
+              (T_string, T_option, T_result, T_tuple, T_future) for
+              move safety; dropping .clone() on those yields a
+              candidate rustc rejects (E0382), so the bare receiver is
+              only offered back for the Copy-like types it leaves
+              bare. *)
+           let bare =
+             match t with
+             | T_f64 | T_bool | T_unit | T_signal _ | T_fn _
+             | T_async_fn _ -> recv :: []
+             | T_string | T_option _ | T_result _ | T_tuple _
+             | T_future _ -> []
+           in
+           append bare
+             (map (fun r' -> E_method (r', M_clone, args)) (go ret t recv))
        | M_get ->
            map
              (fun r' -> E_method (r', M_get, args))

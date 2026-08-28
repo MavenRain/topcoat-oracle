@@ -189,7 +189,10 @@ Phase C: generator
 Phase D: legs and differ
 - M23 driver-rs template: batch of expr! call sites, per-expression
   catch_unwind, server render capture, JS extraction, JSON out.
-  Gate: seed expressions produce native value + JS text.
+  Gate: seed expressions produce native value + JS text. The
+  execution driver needs a per-case timeout: a while body whose
+  condition stays true can spin forever, independent of continue
+  (M20 review, deferred).
 - M24 shell/rust_leg.ml: crate writer, cargo runner against the
   pinned topcoat path dep, JSON parser. Gate: end-to-end on seeds.
 - M25 driver-js: node script importing browser dist surrogates, stub

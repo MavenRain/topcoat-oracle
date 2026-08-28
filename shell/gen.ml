@@ -86,6 +86,12 @@ type gctx = {
   in_async : bool;
   sig_elems : ty list;
   w : Weights.t;
+  m20 : bool;
+      (* M20 printer-soundness scope (research/m20-expr-macro-probe.md):
+         option/result draws stay var-backed, the trim pick drops
+         M_trim, and the f64 pool drops the non-finite specials, so the
+         zero-weight reject families are unreachable. false = the
+         unchanged default draw stream. *)
 }
 
 let keep p xs = rev (fold (fun acc x -> if p x then x :: acc else acc) [] xs)
@@ -167,6 +173,15 @@ let rec param_safe t =
 (* Environment variables of a wanted type or shape. *)
 let vars_at env t = keep (fun kv -> ty_eq (snd kv) t) env
 
+let option_elem t =
+  match t with
+  | T_option a -> Some a
+  | T_f64 | T_bool | T_string | T_unit | T_result _ | T_tuple _ | T_fn _
+  | T_async_fn _ | T_future _ | T_signal _ -> None
+
+let option_vars env =
+  keep (fun kv -> Option.is_some (option_elem (snd kv))) env
+
 let result_vars pred env =
   keep
     (fun kv ->
@@ -225,6 +240,22 @@ let gen_f64_bits (w : Weights.t) =
           half32 >>= fun lo -> G.return (hi, lo) );
     ]
 
+(* M20 pool: the finite render vectors only. f_literal prints the
+   specials as f64::NAN / f64::INFINITY path expressions, which the
+   expr! grammar rejects (round-2 probe p27). No random arm: a random
+   bit pattern can land on NaN or an infinity. *)
+let f64_pool_m20 =
+  map Floatops.of_float
+    [
+      0.0; -0.0; 1.0; -1.0; 0.5; 0.1; 1.5; 2.0; 3.0; 100.0; 1e15; 1e16;
+      1e300; 5e-324; 1e-5; 123456789012345680.0;
+    ]
+
+let gen_f64_bits_m20 =
+  match f64_pool_m20 with
+  | [] -> G.return (0, 0)
+  | p :: ps -> pick_elt p ps
+
 (* Byte strings, with UTF-8 multibyte and escape-sensitive entries
    for the bytes-vs-UTF-16 and render risk classes. *)
 let str_pool =
@@ -248,28 +279,38 @@ let rec alloc_params ps nid =
 
 (* Sized type draw. Signal element choices come from sig_elems, so an
    expression at any drawn signal type can always find a variable. *)
-let rec gen_ty (w : Weights.t) elems fuel =
+let rec gen_ty m20 (w : Weights.t) elems fuel =
   let sub = fuel - 1 in
   let deeper =
     if fuel <= 0 then []
     else
       [
         ( w.ty_option,
-          fun () -> gen_ty w elems sub >>= fun a -> G.return (T_option a) );
+          fun () ->
+            (* m20: only var-backed element types, so every option
+               leaf can resolve to an environment variable. *)
+            (if m20 then pick_elt T_f64 [ T_string ]
+             else gen_ty m20 w elems sub)
+            >>= fun a -> G.return (T_option a) );
         ( w.ty_result,
           fun () ->
-            gen_ty w elems sub >>= fun a ->
-            gen_ty w elems sub >>= fun e -> G.return (T_result (a, e)) );
+            if m20 then
+              pick_elt
+                (T_result (T_f64, T_string))
+                [ T_result (T_string, T_f64) ]
+            else
+              gen_ty m20 w elems sub >>= fun a ->
+              gen_ty m20 w elems sub >>= fun e -> G.return (T_result (a, e)) );
         ( w.ty_fn,
           fun () ->
-            gen_tys w elems sub >>= fun ps ->
-            gen_ty w elems sub >>= fun r -> G.return (T_fn (ps, r)) );
+            gen_tys m20 w elems sub >>= fun ps ->
+            gen_ty m20 w elems sub >>= fun r -> G.return (T_fn (ps, r)) );
         ( w.ty_async_fn,
           fun () ->
-            gen_tys w elems sub >>= fun ps ->
-            gen_ty w elems sub >>= fun r -> G.return (T_async_fn (ps, r)) );
+            gen_tys m20 w elems sub >>= fun ps ->
+            gen_ty m20 w elems sub >>= fun r -> G.return (T_async_fn (ps, r)) );
         ( w.ty_future,
-          fun () -> gen_ty w elems sub >>= fun a -> G.return (T_future a) );
+          fun () -> gen_ty m20 w elems sub >>= fun a -> G.return (T_future a) );
       ]
   in
   let sigs =
@@ -294,13 +335,14 @@ let rec gen_ty (w : Weights.t) elems fuel =
        ]
        (append deeper sigs))
 
-and gen_tys w elems fuel = G.int_bound 2 >>= fun n -> gen_ty_list w elems fuel n
+and gen_tys m20 w elems fuel =
+  G.int_bound 2 >>= fun n -> gen_ty_list m20 w elems fuel n
 
-and gen_ty_list w elems fuel n =
+and gen_ty_list m20 w elems fuel n =
   if n <= 0 then G.return []
   else
-    gen_ty w elems fuel >>= fun t ->
-    gen_ty_list w elems fuel (n - 1) >>= fun ts -> G.return (t :: ts)
+    gen_ty m20 w elems fuel >>= fun t ->
+    gen_ty_list m20 w elems fuel (n - 1) >>= fun ts -> G.return (t :: ts)
 
 (* Leaf expressions: one per type, no fuel. Total over ty. The signal
    tripwire arm returns a wrong-type expression on purpose: it is
@@ -310,16 +352,54 @@ and gen_ty_list w elems fuel n =
 let rec leaf ctx nid t =
   match t with
   | T_f64 ->
-      gen_f64_bits ctx.w >>= fun p ->
-      G.return (E_lit (L_f64_bits (fst p, snd p)), nid)
+      (if ctx.m20 then gen_f64_bits_m20 else gen_f64_bits ctx.w)
+      >>= fun p -> G.return (E_lit (L_f64_bits (fst p, snd p)), nid)
   | T_bool -> G.bool >>= fun b -> G.return (E_lit (L_bool b), nid)
-  | T_string -> gen_str >>= fun s -> G.return (E_lit (L_str s), nid)
+  | T_string ->
+      (match () with
+       | () when ctx.m20 ->
+           (* String literals are &StrSurrogate inside the macro and
+              do not unify with StringSurrogate values (1k batch
+              round 3, E0308); only pattern and message args may stay
+              literal. Draw a String var (cloned) instead; the
+              literal fallback is unreachable while the genv has v2
+              and m20_safe flags it. *)
+           (match vars_at ctx.env T_string with
+            | kv :: kvs ->
+                pick_elt kv kvs >>= fun v -> G.return (var_use v, nid)
+            | [] -> gen_str >>= fun s -> G.return (E_lit (L_str s), nid))
+       | () -> gen_str >>= fun s -> G.return (E_lit (L_str s), nid))
   | T_unit -> G.return (E_block_unit [], nid)
   | T_option a ->
-      if turbofish_safe a then G.return (E_none a, nid)
-      else leaf ctx nid a >>= fun p -> G.return (E_some (fst p), snd p)
+      (match () with
+       | () when ctx.m20 ->
+           (* E_none / E_some are guaranteed rustc rejects at the pin;
+              draw a var of the option type instead. The var-less
+              fallback is unreachable while gen_ty's m20 arm keeps
+              option elements var-backed; m20_safe flags it on drift. *)
+           (match vars_at ctx.env (T_option a) with
+            | kv :: kvs ->
+                pick_elt kv kvs >>= fun v -> G.return (var_use v, nid)
+            | [] ->
+                leaf ctx nid a >>= fun p ->
+                G.return
+                  ( E_method (E_lit (L_bool false), M_then_some, [ fst p ]),
+                    snd p ))
+       | () ->
+           if turbofish_safe a then G.return (E_none a, nid)
+           else leaf ctx nid a >>= fun p -> G.return (E_some (fst p), snd p))
   | T_result (a, e) ->
-      leaf ctx nid a >>= fun p -> G.return (E_ok (fst p, e), snd p)
+      (match () with
+       | () when ctx.m20 ->
+           (* Same var-backed discipline; the E_ok fallback is a
+              tripwire m20_safe flags if a result type ever loses its
+              variable. *)
+           (match vars_at ctx.env (T_result (a, e)) with
+            | kv :: kvs ->
+                pick_elt kv kvs >>= fun v -> G.return (var_use v, nid)
+            | [] ->
+                leaf ctx nid a >>= fun p -> G.return (E_ok (fst p, e), snd p))
+       | () -> leaf ctx nid a >>= fun p -> G.return (E_ok (fst p, e), snd p))
   | T_tuple ts ->
       (* Unconstructible under expr!; total backstop for caller-given
          types only. *)
@@ -398,16 +478,31 @@ let rec gen_expr ctx fuel nid t =
             G.return (E_method (fst p, M_clone, []), snd p) );
         ( w.opt_unwrap,
           fun () ->
-            gen_expr ctx sub nid (T_option t) >>= fun p ->
-            G.return (E_method (fst p, M_unwrap, []), snd p) );
+            (* m20: option receivers come straight from option-typed
+               vars, so no recursion can bottom out at E_none. *)
+            (match () with
+             | () when ctx.m20 ->
+                 (match vars_at ctx.env (T_option t) with
+                  | kv :: kvs -> pick_elt kv kvs >>= fun v ->
+                                 G.return (var_use v, nid)
+                  | [] -> gen_expr ctx sub nid (T_option t))
+             | () -> gen_expr ctx sub nid (T_option t))
+            >>= fun p -> G.return (E_method (fst p, M_unwrap, []), snd p) );
         ( w.opt_expect,
           fun () ->
-            gen_expr ctx sub nid (T_option t) >>= fun p ->
+            (match () with
+             | () when ctx.m20 ->
+                 (match vars_at ctx.env (T_option t) with
+                  | kv :: kvs -> pick_elt kv kvs >>= fun v ->
+                                 G.return (var_use v, nid)
+                  | [] -> gen_expr ctx sub nid (T_option t))
+             | () -> gen_expr ctx sub nid (T_option t))
+            >>= fun p ->
             gen_str >>= fun msg ->
             G.return (E_method (fst p, M_expect, [ E_lit (L_str msg) ]), snd p) );
         ( w.call_closure,
           fun () ->
-            gen_tys w ctx.sig_elems 1 >>= fun ps0 ->
+            gen_tys ctx.m20 w ctx.sig_elems 1 >>= fun ps0 ->
             let ps = map param_safe ps0 in
             gen_expr ctx sub nid (T_fn (ps, t)) >>= fun pf ->
             gen_args ctx sub (snd pf) ps >>= fun pa ->
@@ -531,14 +626,33 @@ and specific_prods ctx sub nid t =
             fun () ->
               pick_elt M_starts_with [ M_ends_with; M_contains ] >>= fun m ->
               gen_expr ctx sub nid T_string >>= fun ps ->
-              gen_expr ctx sub (snd ps) T_string >>= fun pa ->
+              (match () with
+               | () when ctx.m20 ->
+                   (* pattern args take &StrSurrogate: literal only
+                      (round 2 p31 passes, batch round 3 E0308 shows
+                      a String value here rejects) *)
+                   gen_str >>= fun s -> G.return (E_lit (L_str s), snd ps)
+               | () -> gen_expr ctx sub (snd ps) T_string)
+              >>= fun pa ->
               G.return (E_method (fst ps, m, [ fst pa ]), snd pa) );
           ( w.opt_pred,
             fun () ->
               pick_elt M_is_some [ M_is_none ] >>= fun m ->
-              gen_ty w ctx.sig_elems 1 >>= fun pt ->
-              gen_expr ctx sub nid (T_option pt) >>= fun p ->
-              G.return (E_method (fst p, m, []), snd p) );
+              let deep () =
+                gen_ty ctx.m20 w ctx.sig_elems 1 >>= fun pt ->
+                gen_expr ctx sub nid (T_option pt) >>= fun p ->
+                G.return (E_method (fst p, m, []), snd p)
+              in
+              match () with
+              | () when ctx.m20 ->
+                  (* var-direct receiver; the deep fallback is
+                     unreachable while the genv has option vars. *)
+                  (match option_vars ctx.env with
+                   | kv :: kvs ->
+                       pick_elt kv kvs >>= fun v ->
+                       G.return (E_method (var_use v, m, []), nid)
+                   | [] -> deep ())
+              | () -> deep () );
           ( w.str_is_empty,
             fun () ->
               gen_expr ctx sub nid T_string >>= fun p ->
@@ -550,7 +664,11 @@ and specific_prods ctx sub nid t =
         [
           ( w.trim,
             fun () ->
-              pick_elt M_trim [ M_trim_start; M_trim_end ] >>= fun m ->
+              (* m20 drops M_trim: E0597 macro-temp borrow even on
+                 first use (round 1). *)
+              (if ctx.m20 then pick_elt M_trim_start [ M_trim_end ]
+               else pick_elt M_trim [ M_trim_start; M_trim_end ])
+              >>= fun m ->
               gen_expr ctx sub nid T_string >>= fun p ->
               G.return (E_method (fst p, m, []), snd p) );
           ( w.to_owned,
@@ -574,8 +692,15 @@ and specific_prods ctx sub nid t =
               G.return (E_while (fst pc, fst pb), snd pb) );
           ( w.loop_,
             fun () ->
-              gen_loop_body ctx sub nid >>= fun pb ->
-              G.return (E_loop (fst pb), snd pb) );
+              (match () with
+               | () when ctx.m20 ->
+                   (* a loop without its own break has type ! inside
+                      the macro and ! is not Surrogate (1k batch
+                      round 3, E0277): force the break suffix *)
+                   gen_stmts ctx sub nid >>= fun (stmts, _ctx1, n1) ->
+                   G.return (E_block_unit (append stmts [ E_break ]), n1)
+               | () -> gen_loop_body ctx sub nid)
+              >>= fun pb -> G.return (E_loop (fst pb), snd pb) );
           ( w.block_unit,
             fun () ->
               gen_stmts ctx sub nid >>= fun (stmts, _ctx1, n1) ->
@@ -700,9 +825,23 @@ and sig_get ctx sub nid elem =
       [
         ( ctx.w.sig_get,
           fun () ->
-            gen_expr ctx sub nid (T_signal elem) >>= fun p ->
+            sig_recv ctx sub nid elem >>= fun p ->
             G.return (E_method (fst p, M_get, []), snd p) );
       ]
+
+(* m20: a signal method receiver is a bare var, nothing else. A bare
+   signal value in any other position moves its once-bound external
+   (per use, and per loop iteration), which is E0382 (1k batch round
+   3). The [] fallback replays the deep draw; it is unreachable while
+   sig_elems mirror the genv signals, and m20_safe flags the drift. *)
+and sig_recv ctx sub nid elem =
+  match () with
+  | () when ctx.m20 ->
+      (match vars_at ctx.env (T_signal elem) with
+       | kv :: kvs ->
+           pick_elt kv kvs >>= fun v -> G.return (E_var (fst v), nid)
+       | [] -> gen_expr ctx sub nid (T_signal elem))
+  | () -> gen_expr ctx sub nid (T_signal elem)
 
 and sig_writes ctx sub nid =
   match ctx.sig_elems with
@@ -721,7 +860,7 @@ and write_at ctx sub nid elem =
         [
           ( w.toggle,
             fun () ->
-              gen_expr ctx sub nid (T_signal T_bool) >>= fun p ->
+              sig_recv ctx sub nid T_bool >>= fun p ->
               G.return (E_method (fst p, M_toggle, []), snd p) );
         ]
     | T_f64 ->
@@ -729,14 +868,14 @@ and write_at ctx sub nid elem =
           ( w.inc_dec,
             fun () ->
               pick_elt M_increment [ M_decrement ] >>= fun m ->
-              gen_expr ctx sub nid (T_signal T_f64) >>= fun p ->
+              sig_recv ctx sub nid T_f64 >>= fun p ->
               G.return (E_method (fst p, m, []), snd p) );
         ]
     | T_string ->
         [
           ( w.push_str,
             fun () ->
-              gen_expr ctx sub nid (T_signal T_string) >>= fun ps ->
+              sig_recv ctx sub nid T_string >>= fun ps ->
               gen_expr ctx sub (snd ps) T_string >>= fun pv ->
               G.return (E_method (fst ps, M_push_str, [ fst pv ]), snd pv) );
         ]
@@ -746,7 +885,7 @@ and write_at ctx sub nid elem =
   pick_w
     ( w.set_,
       fun () ->
-        gen_expr ctx sub nid (T_signal elem) >>= fun ps ->
+        sig_recv ctx sub nid elem >>= fun ps ->
         gen_expr ctx sub (snd ps) elem >>= fun pv ->
         G.return (E_method (fst ps, M_set, [ fst pv ]), snd pv) )
     extras
@@ -800,14 +939,14 @@ and stmts_go ctx fuel nid n acc =
     pick_w
       ( ctx.w.stmt_let,
         fun () ->
-          gen_ty ctx.w ctx.sig_elems 1 >>= fun pt0 ->
+          gen_ty ctx.m20 ctx.w ctx.sig_elems 1 >>= fun pt0 ->
           let pt = param_safe pt0 in
           gen_expr ctx fuel nid pt >>= fun p ->
           G.return ([ (snd p, pt) ], E_let (snd p, fst p), snd p + 1) )
       [
         ( ctx.w.stmt_expr,
           fun () ->
-            gen_ty ctx.w ctx.sig_elems 1 >>= fun dt ->
+            gen_ty ctx.m20 ctx.w ctx.sig_elems 1 >>= fun dt ->
             gen_expr ctx fuel nid dt >>= fun p ->
             G.return ([], fst p, snd p) );
       ]
@@ -831,14 +970,21 @@ and gen_args ctx fuel nid ps =
    samples at fuel 0 and never exercise a recursive production
    (review finding, 2026-08-27). The top context matches wf's
    check_top: no loop, no closure, not async. *)
-let gen_target_w (w : Weights.t) g =
+let gen_target_mode m20 (w : Weights.t) g =
   let elems = map snd g.signals in
   G.int_bound 2 >>= fun tyfuel ->
   G.int_bound 6 >>= fun fuel ->
-  gen_ty w elems tyfuel >>= fun t ->
+  gen_ty m20 w elems tyfuel >>= fun t ->
   gen_expr
-    { env = wf_env g; in_async = false; sig_elems = elems; w }
+    { env = wf_env g; in_async = false; sig_elems = elems; w; m20 }
     fuel (first_fresh g) t
   >>= fun p -> G.return (t, fst p)
 
+let gen_target_w (w : Weights.t) g = gen_target_mode false w g
+
 let gen_target g = gen_target_w Weights.default g
+
+(* M20 draw: rustc-checkable scope only (Weights.m20 zeroes the reject
+   families; the m20 switches above keep option/result draws
+   var-backed). Pair with M20.genv, which has no fn-typed input. *)
+let gen_target_m20 g = gen_target_mode true Weights.m20 g

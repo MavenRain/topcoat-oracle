@@ -1,0 +1,12 @@
+[package]
+name = "exprmac-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+topcoat-runtime = { path = "../../../../topcoat/crates/topcoat-runtime" }
+topcoat-runtime-macro = { path = "../../../../topcoat/crates/topcoat-runtime/macro" }
+topcoat-view = { path = "../../../../topcoat/crates/topcoat-view" }
+
+[workspace]

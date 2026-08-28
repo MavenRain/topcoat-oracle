@@ -176,3 +176,52 @@ let default =
     stmt_let = 3 (* 2 *);
     stmt_expr = 4 (* 5 *);
   }
+
+(* M20 printer-soundness scope (research/m20-expr-macro-probe.md,
+   rounds 1 and 2). A zero weight marks a production whose printed
+   form the expr! macro or rustc rejects at pin 51caa01d:
+   - call/await/closure family: no Surrogated for closures, unstable
+     fn_traits, annotated closures type-mismatch (round 1 f1-f5,
+     g1-g4; round 2 p05 confirms the annotated then-arg closure).
+   - None/Some/Ok/Err: topcoat_runtime::Option/Result do not exist.
+     This zeroes the VALUE constructors only (some/none/ok/err =
+     E_some/E_none/E_ok/E_err). res_ok/res_err stay at 1: they draw
+     the `.ok()` / `.err()` methods on a result-typed var, which pass
+     (round 2 p17).
+   - trim family: E0597 macro-temp borrow (round 1 b1; round 2
+     p07-p10 confirm trim_start/trim_end, bare and cloned).
+   - clone: kept only inside var_use (a fresh var receiver), so the
+     generic clone production is off (signal receivers have no
+     surrogate clone).
+   - closure bodies with return: unreachable anyway once then_ is
+     out; kept at zero for a tight scope.
+   gen.ml's m20 switches keep option/result draws var-backed so the
+   zeroed leaves are never forced. *)
+let m20 =
+  {
+    default with
+    ty_fn = 0;
+    ty_async_fn = 0;
+    ty_future = 0;
+    ty_signal = 0
+    (* bare signal values move per use inside expr!; signals appear
+       only as direct method receivers, never as drawn types *);
+    fn_call = 0;
+    clone = 0;
+    call_closure = 0;
+    await = 0;
+    trim = 0 (* round 2: trim_start/trim_end also E0597 *);
+    some = 0;
+    none = 0;
+    then_ = 0 (* round 2 p05: annotated closure arg rejects *);
+    res_ok = 1;
+    res_err = 1;
+    ok = 0;
+    err = 0;
+    closure = 0;
+    async_closure = 0;
+    call_async_closure = 0;
+    call_async_fn = 0;
+    body_return = 0;
+    body_return_unit = 0;
+  }

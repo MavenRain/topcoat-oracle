@@ -126,6 +126,47 @@ let vec_return_coercion () =
        (E_closure ([], T_option T_f64, E_some (E_none T_f64)))
        (Shrink.cands tf f))
 
+(* Clone erasure is unsound for move-hostile types (gen.ml's var_use
+   clones exactly these for move safety): the bare receiver must not
+   be offered there, but stays offered for Copy-like types. *)
+let v_clone_gate () =
+  Alcotest.(check bool) "clone drop excluded for move-hostile type" false
+    (List.mem (E_var 2)
+       (Shrink.cands T_string (E_method (E_var 2, M_clone, []))));
+  Alcotest.(check bool) "clone drop kept for Copy-like type" true
+    (List.mem (E_var 0)
+       (Shrink.cands T_f64 (E_method (E_var 0, M_clone, []))))
+
+(* None::<T> is only printable when T is turbofish-safe (gen.ml); a
+   function type is not, so the None candidate falls back to Some of
+   the element's own minimal value instead. *)
+let v_option_nameable () =
+  let tfn = T_fn ([ T_f64 ], T_f64) in
+  Alcotest.(check bool) "unnameable None falls back to Some minimal" true
+    (Shrink.minimal (T_option tfn)
+     = Some
+         (E_some
+            (E_closure
+               ([ (900000, T_f64) ], T_f64, E_lit (L_f64_bits (0, 0))))))
+
+(* Review example (E_ok (E_break, T_f64) at T_result (T_string,
+   T_bool)) is INAPPLICABLE as a positive wf_at vector: wf.ml's
+   check_top rejects any expression whose own inferred shape is
+   Sh_never (W_never_at_top), and E_ok/E_err propagate a never
+   payload's shape as Sh_never unconditionally, ignoring the stored
+   annotation either way -- so a top-level E_ok/E_err over a
+   never-shaped payload is rejected by wf_at regardless of whether the
+   annotation matches, and this top-level-only harness cannot observe
+   the guard fix 4 adds. Falls back to the instructed alternative:
+   assert every candidate at a matching-annotation target still passes
+   wf_at, so the guard is not overly conservative on the legitimate
+   case. *)
+let v_result_annotation_guard () =
+  let e = E_ok (E_lit (L_f64_bits (1072693248, 0)), T_bool) in
+  let t = T_result (T_f64, T_bool) in
+  Alcotest.(check bool) "matching-annotation rewrap stays wf" true
+    (List.for_all (fun c -> wf_at t c) (Shrink.cands t e))
+
 let () =
   Alcotest.run "shrink"
     [
@@ -139,5 +180,9 @@ let () =
           Alcotest.test_case "await collapse" `Quick vec_await_collapse;
           Alcotest.test_case "minimal values" `Quick vec_minimal;
           Alcotest.test_case "return coercion" `Quick vec_return_coercion;
+          Alcotest.test_case "clone gate" `Quick v_clone_gate;
+          Alcotest.test_case "option nameable" `Quick v_option_nameable;
+          Alcotest.test_case "result annotation guard" `Quick
+            v_result_annotation_guard;
         ] );
     ]

@@ -3,3 +3,5 @@ driver-rs/target/
 driver-js/node_modules/
 *.install
 campaign/
+_emit/
+research/probes-rs/m20r2/

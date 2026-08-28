@@ -1,0 +1,3 @@
+(executable
+ (name emit_m20)
+ (libraries oracle_core oracle_shell qcheck-core))
