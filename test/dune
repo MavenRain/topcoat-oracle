@@ -13,3 +13,7 @@
 (test
  (name test_gen)
  (libraries oracle_core oracle_shell alcotest qcheck-core qcheck-alcotest))
+
+(test
+ (name test_shrink)
+ (libraries oracle_core oracle_shell alcotest qcheck-core qcheck-alcotest))
