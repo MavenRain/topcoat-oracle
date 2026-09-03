@@ -181,10 +181,10 @@ Phase C: generator
 - M20 printer soundness: batch 1k printed exprs into one driver crate,
   compile with rustc. Gate: zero rejects; any reject minimizes to a
   recorded printer bug.
-- M21 taxonomy split: read-only vs signal-writing modes;  sample
+- M21 taxonomy split: read-only vs signal-writing modes; sample
   environment generator (signals 1..3 drawn with element type and
-  initial value;  inputs keep the fixed driver shape with drawn
-  initial values;  fn-typed inputs excluded, expr! .call gap).
+  initial value; inputs keep the fixed driver shape with drawn
+  initial values; fn-typed inputs excluded, expr! .call gap).
   Gate: mode counters at N=10k, classifier agrees with the requested
   mode on every sample.
 - M22 coverage report CLI; no silent caps, dropped samples logged.
@@ -196,7 +196,9 @@ Phase D: legs and differ
   Gate: seed expressions produce native value + JS text. The
   execution driver needs a per-case timeout: a while body whose
   condition stays true can spin forever, independent of continue
-  (M20 review, deferred).
+  (M20 review, deferred). A String-typed init prints as a bare
+  literal (&str): render String::from(..) at every string-literal
+  leaf of an init (M21 review).
 - M24 shell/rust_leg.ml: crate writer, cargo runner against the
   pinned topcoat path dep, JSON parser. Gate: end-to-end on seeds.
 - M25 driver-js: node script importing browser dist surrogates, stub

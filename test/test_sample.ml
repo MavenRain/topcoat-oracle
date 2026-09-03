@@ -165,6 +165,17 @@ let tax_receiver () =
   chk_mode "write under a receiver" Taxonomy.Signal_writing
     (E_method (E_block ([ set3 ], E_var 3), M_get, []))
 
+(* The two arms the writer generator never leaves as the only write:
+   a method argument and a let initializer. *)
+let tax_argument () =
+  chk_mode "write inside a method argument" Taxonomy.Signal_writing
+    (E_method
+       (E_var 2, M_starts_with, [ E_block ([ set3 ], E_lit (L_str "a")) ]))
+
+let tax_let_init () =
+  chk_mode "write inside a let initializer" Taxonomy.Signal_writing
+    (E_let (11, E_block ([ set3 ], f64 1.0)))
+
 (* ---------- suite: run_sample ---------- *)
 
 let chk_out name expected (r : Interp.run_result) =
@@ -414,6 +425,8 @@ let samples_default = draw_mixed false Weights.default seed_mixed
 let samples_m20 = draw_mixed true Weights.m20 seed_mixed
 let samples_read = draw_at false Weights.default Taxonomy.Read_only seed_read
 let samples_write = draw_at false Weights.default Taxonomy.Signal_writing seed_write
+let samples_read_m20 = draw_at true Weights.m20 Taxonomy.Read_only seed_read
+let samples_write_m20 = draw_at true Weights.m20 Taxonomy.Signal_writing seed_write
 
 (* ---------- report ---------- *)
 
@@ -477,10 +490,9 @@ let report =
   ^ meth_lines "default" samples_default
   ^ shape_lines "write" samples_write
   ^ meth_lines "write" samples_write
-  ^ Printf.sprintf "read_write_methods %d\n"
-      (List.fold_left
-         (fun acc k -> acc + Tally.count k (tally_of samples_read))
-         0 write_meths)
+  ^ (let tr = tally_of samples_read in
+     Printf.sprintf "read_write_methods %d\n"
+       (List.fold_left (fun acc k -> acc + Tally.count k tr) 0 write_meths))
   ^ init_lines "default" samples_default
 
 (* ---------- runner ---------- *)
@@ -501,6 +513,7 @@ let scope_cases label samples =
 
 let () =
   print_string report;
+  flush stdout;
   Alcotest.run "sample"
     [
       ( "taxonomy",
@@ -519,6 +532,8 @@ let () =
           Alcotest.test_case "async closure body writes" `Quick
             tax_async_closure;
           Alcotest.test_case "receiver writes" `Quick tax_receiver;
+          Alcotest.test_case "argument writes" `Quick tax_argument;
+          Alcotest.test_case "let init writes" `Quick tax_let_init;
         ] );
       ( "run_sample",
         [
@@ -538,6 +553,12 @@ let () =
                 (mode_agreement "read" samples_read);
               Alcotest.test_case "read-only batch target wf" `Quick
                 (target_wf "read" samples_read);
+              Alcotest.test_case "read-only batch inits wf" `Quick
+                (inits_wf "read" samples_read);
+              Alcotest.test_case "read-only batch writers unit" `Quick
+                (writers_unit "read" samples_read);
+              Alcotest.test_case "read-only batch ids distinct" `Quick
+                (ids_ok "read" samples_read);
               Alcotest.test_case "writer batch all write" `Quick
                 (write_batch_all_write "write" samples_write);
               Alcotest.test_case "writer batch reaches every write method"
@@ -549,6 +570,42 @@ let () =
                 (target_wf "write" samples_write);
               Alcotest.test_case "writer batch mode agreement" `Quick
                 (mode_agreement "write" samples_write);
+              Alcotest.test_case "writer batch inits wf" `Quick
+                (inits_wf "write" samples_write);
+              Alcotest.test_case "writer batch writers unit" `Quick
+                (writers_unit "write" samples_write);
+              Alcotest.test_case "writer batch ids distinct" `Quick
+                (ids_ok "write" samples_write);
+              Alcotest.test_case "m20 read-only batch has no writes" `Quick
+                (read_batch_has_no_writes "read_m20" samples_read_m20);
+              Alcotest.test_case "m20 read-only batch mode agreement" `Quick
+                (mode_agreement "read_m20" samples_read_m20);
+              Alcotest.test_case "m20 read-only batch target wf" `Quick
+                (target_wf "read_m20" samples_read_m20);
+              Alcotest.test_case "m20 read-only batch inits wf" `Quick
+                (inits_wf "read_m20" samples_read_m20);
+              Alcotest.test_case "m20 read-only batch writers unit" `Quick
+                (writers_unit "read_m20" samples_read_m20);
+              Alcotest.test_case "m20 read-only batch ids distinct" `Quick
+                (ids_ok "read_m20" samples_read_m20);
+              Alcotest.test_case "m20 writer batch all write" `Quick
+                (write_batch_all_write "write_m20" samples_write_m20);
+              Alcotest.test_case "m20 writer batch reaches every write method"
+                `Quick
+                (write_batch_reaches_meths "write_m20" samples_write_m20);
+              Alcotest.test_case "m20 writer batch reaches every top shape"
+                `Quick
+                (write_batch_reaches_shapes "write_m20" samples_write_m20);
+              Alcotest.test_case "m20 writer batch target wf" `Quick
+                (target_wf "write_m20" samples_write_m20);
+              Alcotest.test_case "m20 writer batch mode agreement" `Quick
+                (mode_agreement "write_m20" samples_write_m20);
+              Alcotest.test_case "m20 writer batch inits wf" `Quick
+                (inits_wf "write_m20" samples_write_m20);
+              Alcotest.test_case "m20 writer batch writers unit" `Quick
+                (writers_unit "write_m20" samples_write_m20);
+              Alcotest.test_case "m20 writer batch ids distinct" `Quick
+                (ids_ok "write_m20" samples_write_m20);
               Alcotest.test_case "init coverage" `Quick
                 (init_coverage "default" samples_default);
             ];

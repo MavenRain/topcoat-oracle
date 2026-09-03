@@ -73,6 +73,7 @@ let () =
   print_string
     ("m18 counter report (n=" ^ string_of_int n_m18 ^ ", seed 0x4d3138)\n");
   print_string (Tally.report counts);
+  flush stdout;
   Alcotest.run "gen"
     [
       ("m17", [ QCheck_alcotest.to_alcotest qt_wf ]);

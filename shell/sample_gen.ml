@@ -40,6 +40,9 @@
    round-trips as itself. Every entry below therefore prints as a
    valid Rust string literal; checked against shell/strops.ml
    escape_char at this pin. *)
+(* A valid Rust string literal has type &str.  The M23 driver wraps
+   each string-literal leaf of a String-typed init in String::from(..);
+   the generator keeps the bare literal (see core/sample.ml). *)
 
 open Ast
 

@@ -21,6 +21,12 @@ open Ast
    rust driver (M23) renders it with the same printer as the body:
    `let vID: T = <init>;` for an input, `let vID = Signal::new(<init>);`
    for a signal. *)
+(* M21 review: the printer renders a string literal as a bare Rust
+   literal, which has type &str, not String.  A String-typed init (an
+   input, an Option or Result payload, a Signal element) therefore
+   needs String::from(..) at every string-literal leaf when the M23
+   driver renders the binding.  The AST keeps the bare literal so the
+   body and the init share one printer and one draw stream. *)
 type binding = {
   id : int;
   ty : ty;
