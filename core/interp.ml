@@ -709,3 +709,64 @@ let eval_top ops inputs sig_init fuel e =
          as a stuck panic - deliberately NOT as a value for C_return,
          which would silently accept un-wf-checked input. *)
       { outcome = O_panic (P_other, "stuck:control-escape"); signals }
+
+(* ---------- M21: sample initializers and whole-sample runs ---------- *)
+
+(* A closed initializer (Sample.binding.init) reduces to a store
+   value, or it does not: a panic, fuel exhaustion, or a control
+   escape all mean the generator drew an init it should not have.
+   None reports that instead of substituting a value, and the M21
+   gate asserts Some on every drawn init. *)
+let eval_init ops fuel e =
+  let s = eval ops [] [] fuel e in
+  match s.ctl with
+  | C_value v -> Some v
+  | C_panic (_, _) | C_fuel | C_break | C_continue | C_return _ -> None
+
+(* One binding to its (id, value) pair, or nothing when the init
+   fails to reduce. *)
+let binding_pair ops fuel b =
+  Option.fold
+    ~none:None
+    ~some:(fun v -> Some (b.Sample.id, v))
+    (eval_init ops fuel b.Sample.init)
+
+(* Every binding in order, or nothing when any one of them fails.
+   The accumulator is itself an option, so a single failure carries
+   through to the end without an exception or an option match. The
+   pairs come out reversed and the caller's `rev` restores the
+   binding order. *)
+let eval_bindings_rev ops fuel bs =
+  fold
+    (fun acc b ->
+      Option.fold ~none:None
+        ~some:(fun kvs ->
+          Option.fold ~none:None
+            ~some:(fun kv -> Some (kv :: kvs))
+            (binding_pair ops fuel b))
+        acc)
+    (Some []) bs
+
+let eval_bindings ops fuel bs =
+  Option.map rev (eval_bindings_rev ops fuel bs)
+
+(* Run one sample: reduce every initializer in the EMPTY environment
+   (the inits are closed by construction), bind the inputs by value
+   and the signals into the store, then hand the body to eval_top.
+   An init that fails to reduce surfaces as O_panic (P_other,
+   "stuck:init") rather than being dropped, so a generator bug shows
+   up on the pipeline's own observation channel instead of shrinking
+   the sample count silently.
+
+   The ~none arm builds a record, which Option.fold evaluates
+   eagerly; that is a constant, so the eager arm costs nothing. *)
+let run_sample ops fuel (s : Sample.t) =
+  Option.fold
+    ~none:{ outcome = O_panic (P_other, "stuck:init"); signals = [] }
+    ~some:(fun p -> eval_top ops (fst p) (snd p) fuel s.Sample.body)
+    (Option.fold ~none:None
+       ~some:(fun ins ->
+         Option.fold ~none:None
+           ~some:(fun sigs -> Some (ins, sigs))
+           (eval_bindings ops fuel s.Sample.signals))
+       (eval_bindings ops fuel s.Sample.inputs))

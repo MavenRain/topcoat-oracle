@@ -181,8 +181,12 @@ Phase C: generator
 - M20 printer soundness: batch 1k printed exprs into one driver crate,
   compile with rustc. Gate: zero rejects; any reject minimizes to a
   recorded printer bug.
-- M21 taxonomy split: read-only vs signal-writing modes; signal
-  environment generator. Gate: mode counters at N=10k.
+- M21 taxonomy split: read-only vs signal-writing modes;  sample
+  environment generator (signals 1..3 drawn with element type and
+  initial value;  inputs keep the fixed driver shape with drawn
+  initial values;  fn-typed inputs excluded, expr! .call gap).
+  Gate: mode counters at N=10k, classifier agrees with the requested
+  mode on every sample.
 - M22 coverage report CLI; no silent caps, dropped samples logged.
   Gate: report emitted in smoke run.
 

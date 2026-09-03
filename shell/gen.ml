@@ -92,6 +92,16 @@ type gctx = {
          M_trim, and the f64 pool drops the non-finite specials, so the
          zero-weight reject families are unreachable. false = the
          unchanged default draw stream. *)
+  mode : Taxonomy.mode;
+      (* M21 taxonomy scope. Read_only switches the write productions
+         off at sig_writes, which is the single gate: write_at is the
+         only producer of M_set / M_toggle / M_increment /
+         M_decrement / M_push_str in this file, and sig_writes is its
+         only caller. Nested contexts are built with `{ ctx with .. }`,
+         so closure and loop bodies inherit the mode and cannot
+         reintroduce a write. Every pre-M21 entry point passes
+         Signal_writing, where writes were always allowed, so their
+         draw streams are byte-identical. *)
 }
 
 let keep p xs = rev (fold (fun acc x -> if p x then x :: acc else acc) [] xs)
@@ -843,14 +853,22 @@ and sig_recv ctx sub nid elem =
        | [] -> gen_expr ctx sub nid (T_signal elem))
   | () -> gen_expr ctx sub nid (T_signal elem)
 
+(* M21: the one gate on write production. Read_only yields no
+   production at all, so no write appears anywhere under a Read_only
+   context, closures and loop bodies included (they inherit ctx).
+   Signal_writing keeps the pre-M21 draw exactly. *)
 and sig_writes ctx sub nid =
-  match ctx.sig_elems with
-  | [] -> []
-  | e0 :: es ->
-      [
-        ( ctx.w.sig_write,
-          fun () -> pick_elt e0 es >>= fun elem -> write_at ctx sub nid elem );
-      ]
+  match ctx.mode with
+  | Taxonomy.Read_only -> []
+  | Taxonomy.Signal_writing ->
+      (match ctx.sig_elems with
+       | [] -> []
+       | e0 :: es ->
+           [
+             ( ctx.w.sig_write,
+               fun () ->
+                 pick_elt e0 es >>= fun elem -> write_at ctx sub nid elem );
+           ])
 
 and write_at ctx sub nid elem =
   let w = ctx.w in
@@ -914,19 +932,102 @@ and closure_body ctx fuel nid r =
        ]
        ret_unit)
 
-(* A loop body: statements plus an optional trailing break or
-   continue. wf sees the body under in_loop, so the trailing
-   statement is always legal here and nowhere else. *)
-and gen_loop_body ctx fuel nid =
+(* The trailing break / continue draw. Factored out of gen_loop_body
+   so the M21 writer loop arms spend the identical draw on the
+   suffix; gen_loop_body's own stream is unchanged (statements, then
+   this pick_w). *)
+and loop_suffix ctx =
   let w = ctx.w in
-  gen_stmts ctx fuel nid >>= fun (stmts, _ctx1, n1) ->
   pick_w
     (w.suffix_none, fun () -> G.return [])
     [
       (w.suffix_break, fun () -> G.return [ E_break ]);
       (w.suffix_continue, fun () -> G.return [ E_continue ]);
     ]
-  >>= fun suffix -> G.return (E_block_unit (append stmts suffix), n1)
+
+(* A loop body: drawn statements, then `extra`, then an optional
+   trailing break or continue. wf sees the body under in_loop, so the
+   trailing statement is always legal here and nowhere else. `extra`
+   holds already-drawn statements that must sit before the suffix:
+   the M21 writer loop arms put their guaranteed write there, and the
+   pre-M21 callers pass [] through gen_loop_body. *)
+and gen_loop_body_with ctx fuel nid extra =
+  gen_stmts ctx fuel nid >>= fun (stmts, _ctx1, n1) ->
+  loop_suffix ctx >>= fun suffix ->
+  G.return (E_block_unit (append stmts (append extra suffix)), n1)
+
+and gen_loop_body ctx fuel nid = gen_loop_body_with ctx fuel nid []
+
+(* M21 Signal_writing mode: a handler-shaped unit expression with at
+   least one signal write, guaranteed by construction. Every arm
+   either IS the base (write_at, which always emits one of the five
+   shorthands: its pick_w head is M_set, and pick_w replays the head
+   when every weight is zero) or contains a recursive gen_writer, so
+   the write survives every recursion. The M21 gate cross-checks the
+   guarantee against Taxonomy.mode_of, so a production that loses its
+   write goes red instead of quietly drawing a read-only body.
+
+   The shape weights are Weights.wr_*, seeded from the corpus writer
+   shapes (research/m18-corpus-census.md; the recount lives in the
+   weights.ml comments). Nested writers appear because `wr` is a full
+   sub-writer at every arm. *)
+and gen_writer ctx fuel nid =
+  let w = ctx.w in
+  let sub = max 0 (fuel - 1) in
+  let base () =
+    match ctx.sig_elems with
+    | [] ->
+        (* Tripwire: no signal to write. Unreachable while the caller
+           passes a genv with at least one signal (sample_gen draws
+           1..3), and the gate's "every body writes" check flags it. *)
+        G.return (E_block_unit [], nid)
+    | e0 :: es -> pick_elt e0 es >>= fun elem -> write_at ctx sub nid elem
+  in
+  if fuel <= 0 then base ()
+  else
+    pick_w (w.wr_bare, base)
+      [
+        ( w.wr_block,
+          fun () ->
+            gen_stmts ctx sub nid >>= fun (stmts, ctx1, n1) ->
+            gen_writer ctx1 sub n1 >>= fun p ->
+            G.return (E_block_unit (append stmts [ fst p ]), snd p) );
+        ( w.wr_if,
+          fun () ->
+            gen_expr ctx sub nid T_bool >>= fun pc ->
+            gen_writer ctx sub (snd pc) >>= fun pw ->
+            G.return (E_if (fst pc, fst pw), snd pw) );
+        ( w.wr_if_else,
+          fun () ->
+            gen_expr ctx sub nid T_bool >>= fun pc ->
+            G.bool >>= fun writer_left ->
+            gen_writer ctx sub (snd pc) >>= fun pw ->
+            gen_expr ctx sub (snd pw) T_unit >>= fun pu ->
+            G.return
+              ( (if writer_left then E_if_else (fst pc, fst pw, fst pu)
+                 else E_if_else (fst pc, fst pu, fst pw)),
+                snd pu ) );
+        ( w.wr_while,
+          fun () ->
+            gen_expr ctx sub nid T_bool >>= fun pc ->
+            gen_writer ctx sub (snd pc) >>= fun pw ->
+            gen_loop_body_with ctx sub (snd pw) [ fst pw ] >>= fun pb ->
+            G.return (E_while (fst pc, fst pb), snd pb) );
+        ( w.wr_loop,
+          fun () ->
+            gen_writer ctx sub nid >>= fun pw ->
+            (match () with
+             | () when ctx.m20 ->
+                 (* Same reason as the existing m20 loop arm: a
+                    break-less loop types ! inside the macro and ! is
+                    not Surrogate (E0277), so the suffix is forced. *)
+                 gen_stmts ctx sub (snd pw) >>= fun (stmts, _ctx1, n1) ->
+                 G.return
+                   ( E_block_unit (append stmts [ fst pw; E_break ]),
+                     n1 )
+             | () -> gen_loop_body_with ctx sub (snd pw) [ fst pw ])
+            >>= fun pb -> G.return (E_loop (fst pb), snd pb) );
+      ]
 
 (* Zero to two statements. A let extends the environment for the
    statements and tail after it; ids strictly increase, so nothing
@@ -976,7 +1077,16 @@ let gen_target_mode m20 (w : Weights.t) g =
   G.int_bound 6 >>= fun fuel ->
   gen_ty m20 w elems tyfuel >>= fun t ->
   gen_expr
-    { env = wf_env g; in_async = false; sig_elems = elems; w; m20 }
+    {
+      env = wf_env g;
+      in_async = false;
+      sig_elems = elems;
+      w;
+      m20;
+      mode = Taxonomy.Signal_writing;
+      (* pre-M21 behaviour: writes were always allowed here, so the
+         draw stream is unchanged *)
+    }
     fuel (first_fresh g) t
   >>= fun p -> G.return (t, fst p)
 
@@ -988,3 +1098,29 @@ let gen_target g = gen_target_w Weights.default g
    families; the m20 switches above keep option/result draws
    var-backed). Pair with M20.genv, which has no fn-typed input. *)
 let gen_target_m20 g = gen_target_mode true Weights.m20 g
+
+(* M21: draw at a requested mode (shell/sample_gen.ml wraps this with
+   the environment draw).
+
+   Read_only draws the target type and then the expression exactly as
+   gen_target_mode does, with the write productions switched off at
+   the context. Signal_writing draws a unit handler through
+   gen_writer, so the target is T_unit by construction and no type
+   draw happens: a writing handler in the corpus is always a unit
+   statement or block, never a value expression. That is why the two
+   modes do not share a draw stream. *)
+let gen_at_mode m20 (w : Weights.t) (g : genv) (mode : Taxonomy.mode) =
+  let elems = map snd g.signals in
+  let ctx =
+    { env = wf_env g; in_async = false; sig_elems = elems; w; m20; mode }
+  in
+  match mode with
+  | Taxonomy.Read_only ->
+      G.int_bound 2 >>= fun tyfuel ->
+      G.int_bound 6 >>= fun fuel ->
+      gen_ty m20 w elems tyfuel >>= fun t ->
+      gen_expr ctx fuel (first_fresh g) t >>= fun p -> G.return (t, fst p)
+  | Taxonomy.Signal_writing ->
+      G.int_bound 6 >>= fun fuel ->
+      gen_writer ctx fuel (first_fresh g) >>= fun p ->
+      G.return (T_unit, fst p)

@@ -101,6 +101,16 @@ type t = {
   (* statements (gen_stmts) *)
   stmt_let : int;
   stmt_expr : int;
+  (* M21 mode draw (shell/sample_gen.ml gen_sample) *)
+  mode_read : int;
+  mode_write : int;
+  (* M21 writer shapes (gen.ml gen_writer) *)
+  wr_bare : int;
+  wr_block : int;
+  wr_if_else : int;
+  wr_if : int;
+  wr_while : int;
+  wr_loop : int;
 }
 
 (* Corpus-seeded default. Census counts appear as comments; "M17"
@@ -175,6 +185,33 @@ let default =
     suffix_continue = 1 (* M17 *);
     stmt_let = 3 (* 2 *);
     stmt_expr = 4 (* 5 *);
+    (* M21 mode draw, counted per FRAGMENT (one fragment = one
+       handler = one sample, so the fragment is the unit a mode
+       attaches to). The census counts 12 write OCCURRENCES (set 7,
+       increment/decrement 4, toggle 1) but they sit in 11 distinct
+       fragments: procedure:47 is inside fragment procedure:45, and
+       drink:59 and drink:61 are both inside fragment drink:57. So
+       11 writer fragments and 24 - 11 = 13 read-only fragments.
+       Both land on weight 5. *)
+    mode_read = 5 (* 13 *);
+    mode_write = 5 (* 11 *);
+    (* M21 writer shapes, recounted from the census fragment
+       inventory (the census has no writer-shape table of its own):
+       - bare write 8: counter:9, counter:11, show:8, procedure:39,
+         shard:47, drink:73, menu:36, menu:44
+       - block with a write 3: procedure:45, drink:57, drink:90
+       - if/else with a writing arm 1: drink:58, inside drink:57
+       - bare if 0, while 0, loop 0 (the census counts zero loops,
+         zero breaks and zero bare ifs anywhere in the corpus)
+       drink:73 is `$(|_e: Event| quantity.increment())`, a fragment
+       top in the drink.rs inventory, so it is a bare write; the
+       spec sketch's count of 7 omitted it. *)
+    wr_bare = 5 (* 8 *);
+    wr_block = 3 (* 3 *);
+    wr_if_else = 2 (* 1 *);
+    wr_if = 1 (* 0 *);
+    wr_while = 1 (* 0 *);
+    wr_loop = 1 (* 0 *);
   }
 
 (* M20 printer-soundness scope (research/m20-expr-macro-probe.md,
@@ -224,4 +261,19 @@ let m20 =
     call_async_fn = 0;
     body_return = 0;
     body_return_unit = 0;
+    (* M21: no writer shape is a rustc reject at the pin, so every
+       wr_* family keeps its census value. Restated here (the same
+       way res_ok / res_err are) to record that the m20 scope
+       reviewed them and kept them. The loop arm needs a break to
+       avoid the ! / E0277 reject, and gen_writer forces that
+       structurally under ctx.m20 rather than by a zero weight, so
+       wr_loop stays positive. *)
+    mode_read = 5;
+    mode_write = 5;
+    wr_bare = 5;
+    wr_block = 3;
+    wr_if_else = 2;
+    wr_if = 1;
+    wr_while = 1;
+    wr_loop = 1;
   }
