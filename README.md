@@ -19,6 +19,31 @@ minimized repros under `repros/`.
 Requires the karamel-710 opam switch with ctlk_topos, qcheck and
 alcotest installed, plus node and cargo on PATH.
 
+## Coverage report
+
+    dune exec bin/coverage.exe -- --samples 10000 --scope default
+
+Prints what a drawn batch covers: the constructor tally with the
+required body names and the required init shapes that stayed
+unreached, the mode counters, the environment coverage, the
+target-type and expression-size histograms, and one line per dropped
+sample. Flags:
+
+    --samples N     batch size (default 10000)
+    --seed S        decimal or 0x hex (default 0x4d3138)
+    --mode M        mixed, read-only or signal-writing
+    --scope S       default, m20 or m18
+    --strict        exit 1 on a drop, an unreached required body
+                    name, an unreached required init shape or a
+                    reached excluded name
+    --json          one JSON line instead of the text report
+
+Scope m18 redraws the M18 generator stream and takes --mode mixed
+only. Its constructor block is byte-identical to the block
+test_gen.exe prints, which m22_gate.sh checks. A drop is any sample
+the pipeline did not keep, for any reason; only kept samples feed a
+histogram, and the drop lines have no cap.
+
 ## Status
 
 Phase A in progress. The CTLK pipeline model is green, including the

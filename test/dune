@@ -25,3 +25,7 @@
 (test
  (name test_sample)
  (libraries oracle_core oracle_shell alcotest qcheck-core qcheck-alcotest))
+
+(test
+ (name test_coverage)
+ (libraries oracle_core oracle_shell alcotest qcheck-core qcheck-alcotest))

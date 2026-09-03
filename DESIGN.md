@@ -188,7 +188,19 @@ Phase C: generator
   Gate: mode counters at N=10k, classifier agrees with the requested
   mode on every sample.
 - M22 coverage report CLI; no silent caps, dropped samples logged.
-  Gate: report emitted in smoke run.
+  Six sections: header, constructor tally, mode counters, environment
+  coverage, target types and size, drops. Three scopes: default and
+  m20 draw whole samples, m18 redraws the M18 stream. Every cap in
+  shell/ and bin/ is listed in shell/cover.ml with whether it drops a
+  sample; only kept samples feed a histogram.
+  The required set has two halves, because they live in two
+  tallies: body names scored against the kept bodies, init shapes
+  scored against the drawn initial values. The report names both
+  as unreached_required and unreached_required_inits.
+  Gate: strict smoke run at N=10k drops nothing, reaches every
+  required body name and every required init shape, and emits a
+  json form; the m18 constructor block is byte-identical to the
+  block test_gen prints.
 
 Phase D: legs and differ
 - M23 driver-rs template: batch of expr! call sites, per-expression

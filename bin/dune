@@ -1,3 +1,12 @@
+; Two executables in one directory, so each stanza names its own
+; module explicitly.
+
 (executable
  (name emit_m20)
+ (modules emit_m20)
+ (libraries oracle_core oracle_shell qcheck-core))
+
+(executable
+ (name coverage)
+ (modules coverage)
  (libraries oracle_core oracle_shell qcheck-core))

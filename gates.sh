@@ -7,4 +7,5 @@ dune runtest --root "$ROOT" --force
 "$ROOT/_build/default/model/check.exe"
 zxlint --errors-only "$ROOT"/core/*.ml
 "$ROOT/m20_gate.sh"
+"$ROOT/m22_gate.sh"
 echo "GATES GREEN"
