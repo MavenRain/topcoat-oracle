@@ -1,0 +1,14 @@
+{
+  "name": "topcoat-oracle-driver-js",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "topcoat-oracle js leg: evaluates topcoat-emitted JS under node against the pinned browser surrogates",
+  "license": "MIT OR Apache-2.0",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@maverick-js/signals": "6.0.0"
+  }
+}

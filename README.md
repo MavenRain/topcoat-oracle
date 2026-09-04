@@ -83,6 +83,45 @@ zero. The run summary on stderr pins the exit codes 3 then 0 over one
 resume. The table, the CLI stderr and the JSONL stay under
 _emit/m24/out/, which is gitignored.
 
+## JS leg
+
+    npm --prefix driver-js ci
+    ./m25_gate.sh
+
+The install is a one-time prerequisite and needs network access;  the
+gate names it when @maverick-js/signals is missing.  The gate runs the
+driver-js unit tests, then replays the JSONL that the rust leg just
+wrote through node, and compares the result with a hand-derived table.
+
+driver-js/driver.mjs evaluates the JS half of every wire line under the
+target's own browser surrogates, loaded in place from the topcoat clone
+by node's type transform plus a resolve hook.  It writes one JSONL line
+per case: a value with its wire-form value, its rendered text and the
+final state of every signal, a panic with its class and message, a
+js_error for any other throw, a skipped line when the wire carries no
+JS, or a driver_error naming what could not be decoded.  Run it by hand
+with:
+
+    node --experimental-transform-types --import driver-js/loader.mjs \
+      driver-js/driver.mjs --in <jsonl> --out <jsonl>
+
+Flags: --clone <dir> (default ../topcoat), --timeout-ms N (default
+2000, and 0 or a non-integer is a usage error), --startup-timeout-ms N
+(default 30000, same rules), --from I, --to J.  Exit 0 every selected
+line produced a line, 1 an IO error or an input line that is not JSON,
+2 usage.  There is no exit 3: a case that does not terminate is
+terminated by the parent, gets a no_terminate line, and the run
+continues in a fresh worker.
+
+The two budgets are separate.  Each case gets a fresh worker, and that
+worker must transform the clone TypeScript before it can run anything,
+which costs about 320 ms on an idle machine and several seconds on a
+loaded one.  The worker reports ready when its modules are loaded, and
+--timeout-ms starts only then, so the cold start is never charged to
+the case.  --startup-timeout-ms bounds the cold start alone;  its
+expiry writes a driver_error line that names worker_startup, never a
+no_terminate line.
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the

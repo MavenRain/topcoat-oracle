@@ -228,9 +228,27 @@ Phase D: legs and differ
   timeout costs one case and not the run. bin/m24.exe seeds prints one
   row per case. Gate: end-to-end on seeds, twelve rows compared with a
   hand-derived table.
-- M25 driver-js: node script importing browser dist surrogates, stub
-  cx, evaluates JS strings, captures value/panic/signal finals.
-  Gate: seeds round-trip.
+- M25 driver-js: node script importing the browser surrogate SOURCES
+  under node's type transform, stub cx, evaluates JS strings, captures
+  value/panic/signal finals.  Gate: seeds round-trip.  The browser dist
+  bundle exports nothing and is unusable under node, so the driver
+  imports browser/src/context.ts, signal.ts and surrogate/ in place
+  through a resolve hook that adds the .ts extension and finds the
+  pinned @maverick-js/signals under driver-js/.  Evaluation is the
+  production form, new Function("cx", `return ${js};`), called once
+  against a fresh Context over a registry seeded from the line's
+  signals array;  a closure-form line is invoked once.  The JS text is
+  entity-decoded with the exact inverse of the comment escaper, three
+  entities and no general table.  Each case runs in its own worker
+  thread and a timeout writes a no_terminate line and continues, so
+  there is no resume protocol and no exit 3.  The per-case timeout
+  starts at the worker's ready message and not at its creation,
+  because a fresh worker must transform the clone TypeScript first and
+  that cold start grows with the load on the machine;  the cold start
+  has its own budget and its expiry is a driver_error that names
+  worker_startup.  The wire signal id is a
+  u32 and the JS registry key is a uuid, so the two are paired by
+  position and only the u32 leaves the driver.
 - M26 shell/js_leg.ml + shell/ref_leg.ml: spawn wrapper + adapter to
   obs. Gate: three observations per seed.
 - M27 core/differ.ml: verdict ADT (Agree, Diverge with channel and
