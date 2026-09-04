@@ -10,3 +10,8 @@
  (name coverage)
  (modules coverage)
  (libraries oracle_core oracle_shell qcheck-core))
+
+(executable
+ (name emit_m23)
+ (modules emit_m23)
+ (libraries oracle_core oracle_shell qcheck-core))

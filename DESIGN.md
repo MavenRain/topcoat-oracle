@@ -205,12 +205,18 @@ Phase C: generator
 Phase D: legs and differ
 - M23 driver-rs template: batch of expr! call sites, per-expression
   catch_unwind, server render capture, JS extraction, JSON out.
-  Gate: seed expressions produce native value + JS text. The
-  execution driver needs a per-case timeout: a while body whose
-  condition stays true can spin forever, independent of continue
-  (M20 review, deferred). A String-typed init prints as a bare
-  literal (&str): render String::from(..) at every string-literal
-  leaf of an init (M21 review).
+  Gate: seed expressions produce native value + JS text. The driver
+  has a per-case timeout (2000 ms default) on a spawned thread; a
+  timeout prints a no_terminate line and exits 3, and M24 resumes
+  with --from. A String-typed init renders String::from(..) at every
+  string-literal leaf (Driver.init_rust). A panicking case loses its
+  JS to the unwind, so a second call site in closure form supplies
+  it and the line records js_form and js_consistent. All five signal
+  writers panic server-side at this pin
+  (topcoat-runtime crates/topcoat-runtime/src/surrogate/signal.rs:50-108),
+  so a Signal_writing sample observes the write panic and not a value;
+  M36 re-probes that verdict when the browser leg lands. The seed
+  vector is twelve cases and pins all four hints.
 - M24 shell/rust_leg.ml: crate writer, cargo runner against the
   pinned topcoat path dep, JSON parser. Gate: end-to-end on seeds.
 - M25 driver-js: node script importing browser dist surrogates, stub

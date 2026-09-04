@@ -29,3 +29,7 @@
 (test
  (name test_coverage)
  (libraries oracle_core oracle_shell alcotest qcheck-core qcheck-alcotest))
+
+(test
+ (name test_driver)
+ (libraries oracle_core oracle_shell alcotest qcheck-core qcheck-alcotest))

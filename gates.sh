@@ -8,4 +8,5 @@ dune runtest --root "$ROOT" --force
 zxlint --errors-only "$ROOT"/core/*.ml
 "$ROOT/m20_gate.sh"
 "$ROOT/m22_gate.sh"
+"$ROOT/m23_gate.sh"
 echo "GATES GREEN"
