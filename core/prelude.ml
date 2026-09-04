@@ -15,6 +15,16 @@ let rec nth_opt xs n =
 (* Total division: the divisor is tested on the same line. *)
 let div_opt a b = if b = 0 then None else Some (a / b) (* @total-accessor *)
 
+(* Total one-byte read.  String.get is denied by the house rules and
+   Char.chr raises, so a guarded one-byte String.sub is how a byte is
+   read, exactly as shell/cover.ml reads a digit table.  The result is
+   a ONE-BYTE STRING, so every comparison stays String.equal. *)
+let byte_at s i =
+  match () with
+  | () when i >= 0 && i < String.length s ->
+      Some (String.sub s i 1) (* @total-accessor *)
+  | () -> None
+
 let rec fold f acc xs =
   match xs with
   | [] -> acc

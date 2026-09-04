@@ -218,7 +218,16 @@ Phase D: legs and differ
   M36 re-probes that verdict when the browser leg lands. The seed
   vector is twelve cases and pins all four hints.
 - M24 shell/rust_leg.ml: crate writer, cargo runner against the
-  pinned topcoat path dep, JSON parser. Gate: end-to-end on seeds.
+  pinned topcoat path dep, JSON parser. core/json.ml parses the subset
+  the harness emits (objects, strings with the six escapes, ints, the
+  three literals) and is total: a bad byte is a named error, never an
+  exception. core/wire.ml maps one line to Obs.t plus the js form, the
+  hint and js_consistent, and derives the resume index. The runner is a
+  resume loop: exit 3 restarts the child at the last decoded case plus
+  one under a budget, and every segment appends to one JSONL, so a
+  timeout costs one case and not the run. bin/m24.exe seeds prints one
+  row per case. Gate: end-to-end on seeds, twelve rows compared with a
+  hand-derived table.
 - M25 driver-js: node script importing browser dist surrogates, stub
   cx, evaluates JS strings, captures value/panic/signal finals.
   Gate: seeds round-trip.

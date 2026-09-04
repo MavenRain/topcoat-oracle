@@ -15,3 +15,8 @@
  (name emit_m23)
  (modules emit_m23)
  (libraries oracle_core oracle_shell qcheck-core))
+
+(executable
+ (name m24)
+ (modules m24)
+ (libraries oracle_core oracle_shell qcheck-core))

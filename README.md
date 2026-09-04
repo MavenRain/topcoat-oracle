@@ -69,6 +69,20 @@ range, so an inconsistent case still writes its line and every later
 case still runs; every value line carries js_consistent, so a resumed
 run cannot lose the verdict between segments.
 
+    ./m24_gate.sh
+
+Runs the same seed vector through the OCaml leg rather than through a
+shell script: bin/m24.exe writes the crate under _emit/m24seed, spawns
+cargo with the pinned toolchain, resumes the run past the case that
+spins, decodes the JSONL with core/json.ml and core/wire.ml, and prints
+one row per case. m24_verdict.sh compares the twelve rows byte for byte
+with a hand-derived table, with the trailing js byte count masked
+because js_hex carries a fresh Signal uuid per run; check 5 pins that
+count non-zero on every row but the no-terminate one, which must carry
+zero. The run summary on stderr pins the exit codes 3 then 0 over one
+resume. The table, the CLI stderr and the JSONL stay under
+_emit/m24/out/, which is gitignored.
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the
