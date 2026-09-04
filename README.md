@@ -122,6 +122,34 @@ the case.  --startup-timeout-ms bounds the cold start alone;  its
 expiry writes a driver_error line that names worker_startup, never a
 no_terminate line.
 
+## Three legs
+
+    ./m26_gate.sh
+
+Replays the JSONL both earlier legs wrote and prints three
+observations per seed case: R for the rust leg, J for the js leg, F
+for the reference interpreter, each in the canonical Obs encoding.
+The rust capture is an input, so m24_gate.sh and m25_gate.sh are
+prerequisites and the gate names either one when its output is
+missing.  The js leg spawns the node driver over the same input file
+the js gate used and compares the result with the js gate's own
+expectation, which proves the spawn ran the real driver.  The
+reference leg runs core/interp.ml and adds the rendered channel the
+interpreter leaves out: Rust Display with no html escaping.
+
+    ./_build/default/bin/m26.exe seeds _emit/m24/out/seed.jsonl \
+      _emit/m26/out --clone ../topcoat --root .
+
+Flags: --clone <dir> (default ../topcoat) and --root <dir> (default
+M26_ROOT, else two levels above the out-dir).  Exit 0 when all three
+legs produced twelve observations and the js driver exited 0, 1 on any
+named error, 2 usage.  The table, the CLI stderr and the js JSONL stay
+under _emit/m26/out/, which is gitignored.
+
+The three cells disagree on five of the twelve cases, and every
+disagreement is an output of the pipeline rather than a defect in it.
+M27 adjudicates them.
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the

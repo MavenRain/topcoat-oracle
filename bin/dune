@@ -20,3 +20,8 @@
  (name m24)
  (modules m24)
  (libraries oracle_core oracle_shell qcheck-core))
+
+(executable
+ (name m26)
+ (modules m26)
+ (libraries oracle_core oracle_shell qcheck-core))

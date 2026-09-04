@@ -250,7 +250,21 @@ Phase D: legs and differ
   u32 and the JS registry key is a uuid, so the two are paired by
   position and only the u32 leaves the driver.
 - M26 shell/js_leg.ml + shell/ref_leg.ml: spawn wrapper + adapter to
-  obs. Gate: three observations per seed.
+  obs.  Gate: three observations per seed.  The js wire has no js_hex
+  and no js_consistent and its signal entries are two keys, so
+  core/wire_js.ml decodes it with its own strict key tables and its own
+  signal decoder, reusing core/wire.ml for the value tree, the hex, the
+  class, the hint and the js_form.  A lossy UTF-16 payload is detected
+  on the parsed line before any value decoding, at any depth, and the
+  three js outcomes with no Obs counterpart (js_error, skipped,
+  driver_error) stay leg-level results rather than growing
+  core/obs.ml.  The reference leg composes the rendered channel
+  core/interp.ml deliberately omits: Rust Display with no html
+  escaping, so f64 goes through f_display, str bytes travel verbatim,
+  Some renders its payload, and unit, None, tuple, Ok, Err and closure
+  render absent.  The CLI prints three lines per case, R then J then F,
+  each an Obs.encode, and the gate compares all 36 with a hand-derived
+  table.
 - M27 core/differ.ml: verdict ADT (Agree, Diverge with channel and
   legs, Known with tag, LegFail), subset-pure. Gate: unit vectors.
 - M28 planted-oracle gate: a deliberately mutated interpreter AND a
