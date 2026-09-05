@@ -3,10 +3,11 @@
 // with no value and a missing --in or --out are all usage errors, the
 // way harness.rs:38-39 treats the same flags on the Rust side.
 import { fileURLToPath } from "node:url";
+import { plantOfName } from "./plant.mjs";
 
 /** The one-line usage text, which names every flag. */
 export const USAGE =
-  "usage: driver.mjs --in <jsonl> --out <jsonl> [--clone <dir>] [--timeout-ms N] [--startup-timeout-ms N] [--from I] [--to J]";
+  "usage: driver.mjs --in <jsonl> --out <jsonl> [--clone <dir>] [--timeout-ms N] [--startup-timeout-ms N] [--from I] [--to J] [--plant <name>]";
 
 /** The clone root the m24 gate also checks: <repo>/../topcoat. */
 export const DEFAULT_CLONE = fileURLToPath(
@@ -27,6 +28,9 @@ const DEFAULTS = Object.freeze({
   startupTimeoutMs: 30000,
   fromCase: 0,
   toCase: Number.MAX_SAFE_INTEGER,
+  // null and not "none", for the same reason Plant.of_string rejects
+  // "none": there must be no spelling that selects the unplanted run.
+  plant: null,
 });
 
 /**
@@ -65,6 +69,18 @@ const readTimeout = (raw) =>
         ? { ok: false, error: "--timeout-ms must be at least 1" }
         : index)(readIndex(raw));
 
+/**
+ * Read a plant name against the closed table.  An unknown name is a
+ * usage error and never a silent unplanted run.
+ * @param {string} raw the token
+ * @returns {{ok: true, value: object} | {ok: false, error: string}} the plant
+ */
+const readPlant = (raw) =>
+  ((plant) =>
+    plant === null
+      ? { ok: false, error: `unknown plant: ${raw}` }
+      : { ok: true, value: plant })(plantOfName(raw));
+
 const FLAGS = Object.freeze({
   "--in": Object.freeze({
     read: readPath,
@@ -93,6 +109,10 @@ const FLAGS = Object.freeze({
   "--to": Object.freeze({
     read: readIndex,
     apply: (options, value) => ({ ...options, toCase: value }),
+  }),
+  "--plant": Object.freeze({
+    read: readPlant,
+    apply: (options, value) => ({ ...options, plant: value }),
   }),
 });
 

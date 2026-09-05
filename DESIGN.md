@@ -288,6 +288,21 @@ Phase D: legs and differ
 - M28 planted-oracle gate: a deliberately mutated interpreter AND a
   deliberately mutated js stub must BOTH produce Diverge, then
   restore green. Gate: both planted bugs detected.
+  Two plants, selected at run time by m27's --plant flag and never by
+  editing a file: ref:display_sign flips the sign bit of the float the
+  reference leg is about to display, and js:signal_get_plus_one adds
+  one to the number a signal read returns. The "stub" is the worker's
+  own glue around the clone's Context, so the plant is a glue plant and
+  the clone is never touched. Three runs of one binary: the ref run
+  turns cases 0, 3 and 6 into diverge:rendered:odd:ref, the js run
+  turns case 6 into diverge:value:odd:js, and the no-plant run
+  reproduces the m27 table byte for byte. Restore green is that third
+  table plus the m27 gate that ran one line earlier in the same ladder:
+  nothing was edited, so nothing has to be put back, and there is no
+  window in which a crash leaves the tree mutated. Only two of the
+  twenty-one interpreter ops are reached by these twelve seeds,
+  f_display and str_debug, so the plant table is seed-bound today and
+  M34 grows it with the corpus.
 - M29 minimizer: shrink loop re-executing legs, divergence-preserving.
   Gate: planted divergence minimizes below a size bound.
 - M30 repro emitter: self-contained markdown (Rust source, emitted JS,

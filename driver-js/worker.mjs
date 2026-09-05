@@ -26,6 +26,7 @@ import { stringOfUtf8, utf8OfString } from "./lib/text.mjs";
 import { encodeValue } from "./lib/value.mjs";
 import { classify } from "./lib/classify.mjs";
 import { readLine, outLine } from "./lib/line.mjs";
+import { plantOfName, plantedContext } from "./lib/plant.mjs";
 
 const ENCODER = new TextEncoder();
 const DETAIL_BYTES = 64;
@@ -50,6 +51,22 @@ const cloneSrcOf = (args) => {
 };
 
 const SRC = cloneSrcOf(process.argv);
+
+const PLANT_FLAG = "--plant";
+
+/**
+ * The selected plant, read from this worker's own argument vector.
+ * An absent flag is null.  An unknown name cannot arrive here: the
+ * driver validated it against the same table (lib/argv.mjs).
+ * @param {readonly string[]} args this worker's argument vector
+ * @returns {{name: string} | null} the plant, or null
+ */
+const plantOf = (args) =>
+  ((at) => (at === -1 ? null : plantOfName(args[at + 1])))(
+    args.indexOf(PLANT_FLAG),
+  );
+
+const PLANT = plantOf(process.argv);
 
 /**
  * Import one clone module by relative path under browser/src.
@@ -92,6 +109,14 @@ const ready =
 // The surrogate classifier encodeValue asks for.  String extends Str,
 // so the Str arm covers both the borrowed and the owned form, and both
 // encode to the same wire tag.  undefined is the unit observation.
+// The plant's view of the clone.  Two classifiers and one constructor,
+// so lib/plant.mjs imports nothing and the node test can pass stubs.
+const PLANT_KIT = Object.freeze({
+  isSignal: (v) => v instanceof WriteSignal,
+  isNumber: (v) => v instanceof F64,
+  plusOne: (v) => new F64(v.dehydrate() + 1),
+});
+
 const KINDS = Object.freeze([
   Object.freeze({ owns: (v) => v === undefined, kind: "unit" }),
   Object.freeze({ owns: (v) => typeof v === "function", kind: "function" }),
@@ -492,7 +517,7 @@ const runRecord = (record) => {
                                     ))(finalSignals(registry, pairs.value)))(
                               evaluate(js.value, cx, record.jsForm),
                             ))(seedRegistry(cx, registry, pairs.value)))(
-                      new Context(registry),
+                      plantedContext(new Context(registry), PLANT, PLANT_KIT),
                     ))(new SignalRegistry()))(
               pairSignals(js.value, record.signals),
             ))(decodeJs(jsHex));

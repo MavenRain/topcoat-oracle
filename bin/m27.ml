@@ -33,7 +33,8 @@
 open Prelude
 
 let usage =
-  "usage: m27 seeds <rust-jsonl> <out-dir> [--clone <dir>] [--root <dir>]\n"
+  "usage: m27 seeds <rust-jsonl> <out-dir> [--clone <dir>] [--root <dir>] \
+   [--plant ref:<name>|js:<name>]\n"
 
 (* The seed list is the one bin/m24.ml captured from, in the same
    order, so its length is the count every leg must answer with. *)
@@ -52,6 +53,13 @@ let root_of (dir : string) : string =
     ~none:(Filename.dirname (Filename.dirname dir))
     ~some:(fun r -> r)
     (Sys.getenv_opt "M27_ROOT")
+
+(* The reference leg's config is built from the js leg's, because the
+   flag reader threads one record and the plant rides in it (spec 6.2).
+   Plant.ops answers Ops.interp_ops for No_plant and for a js plant, so
+   the reference leg is planted only by a ref plant. *)
+let ref_config (cfg : Js_leg.config) : Ref_leg.config =
+  { Ref_leg.default_config with Ref_leg.ops = Plant.ops cfg.Js_leg.plant }
 
 (* Every named way this program can stop.  A sum type, so the compiler
    catches a new one, and one text function, so the CLI and the gate
@@ -99,6 +107,11 @@ let rec read_flags (cfg : Js_leg.config) (args : string list) :
   | "--clone" :: v :: rest -> read_flags { cfg with Js_leg.clone = v } rest
   | "--root" :: v :: rest ->
       read_flags { cfg with Js_leg.driver_dir = v ^ "/driver-js" } rest
+  | "--plant" :: v :: rest ->
+      Option.fold
+        ~none:(Error ("unknown plant " ^ v))
+        ~some:(fun p -> read_flags { cfg with Js_leg.plant = p } rest)
+        (Plant.of_string v)
   | f :: [] -> Error ("the flag " ^ f ^ " has no value")
   | f :: _ :: _ -> Error ("unknown flag " ^ f)
 
@@ -147,11 +160,8 @@ let rec hint_diffs (n : int) (ss : Sample.t list) (ds : Wire.decoded list) :
    exhaustive seven-arm mismatch case. *)
 type refcell = { r_mode : Taxonomy.mode; r_obs : Obs.observation }
 
-let ref_cell_of (s : Sample.t) : refcell =
-  {
-    r_mode = s.Sample.mode;
-    r_obs = Ref_leg.observe Ref_leg.default_config s;
-  }
+let ref_cell_of (cfg : Ref_leg.config) (s : Sample.t) : refcell =
+  { r_mode = s.Sample.mode; r_obs = Ref_leg.observe cfg s }
 
 (* Four of the five Wire_js constructors carry no observation.  The
    Absent reason is Js_leg.cell itself, so it is BYTE-IDENTICAL to the
@@ -295,6 +305,13 @@ let summary (c : counts) ~(rust : int) ~(js : int) ~(reference : int)
   ^ " by_design " ^ nat_to_string c.c_design ^ " hint_mismatch "
   ^ nat_to_string hint_mismatch
 
+(* One line, and only when a plant is set.  An unconditional line would
+   change the stderr of every m27 run and turn the M27 gate red. *)
+let plant_line (p : Plant.t) : string =
+  match p with
+  | Plant.No_plant -> ""
+  | Plant.Ref _ | Plant.Js _ -> "plant: " ^ Plant.name p ^ "\n"
+
 (* ---------- the report ---------- *)
 
 let named (f : failure) : int =
@@ -306,13 +323,15 @@ let named (f : failure) : int =
    of it.  The exit code then names the first thing that is wrong.  A
    divergence is never one of those things (spec 5.5). *)
 let report_out (ds : Wire.decoded list) (rep : Js_leg.report)
-    (os : refcell list) (ms : (int * string * string) list) : int =
+    (os : refcell list) (ms : (int * string * string) list)
+    ~(plant : Plant.t) : int =
   let rs = table 0 ds rep.Js_leg.j_lines os in
   print_string (concat (map (fun r -> r.rw_text) rs));
   prerr_string
-    (summary (tally rs) ~rust:(len ds)
-       ~js:(len rep.Js_leg.j_lines)
-       ~reference:(len os) ~hint_mismatch:(len ms)
+    (plant_line plant
+    ^ summary (tally rs) ~rust:(len ds)
+        ~js:(len rep.Js_leg.j_lines)
+        ~reference:(len os) ~hint_mismatch:(len ms)
     ^ "\n");
   match () with
   | () when not (len ds = cases) -> named (F_count ("rust", cases, len ds))
@@ -333,8 +352,9 @@ let run_legs (cfg : Js_leg.config) ~(rust : string) ~(dir : string) : int =
            (fun rep ->
              Ok
                (report_out ds rep
-                  (map ref_cell_of Driver.seed_cases)
-                  (hint_diffs 0 Driver.seed_cases ds)))))
+                  (map (ref_cell_of (ref_config cfg)) Driver.seed_cases)
+                  (hint_diffs 0 Driver.seed_cases ds)
+                  ~plant:cfg.Js_leg.plant))))
 
 (* A flag the reader cannot read is a usage error, so it exits 2 beside
    the usage line and never 1, which is reserved for a named error of a

@@ -29,6 +29,7 @@ test("the_full_flag_set_parses", () => {
     startupTimeoutMs: 45000,
     fromCase: 2,
     toCase: 9,
+    plant: null,
   });
 });
 
@@ -43,6 +44,7 @@ test("the_defaults_stand_when_only_in_and_out_are_given", () => {
     startupTimeoutMs: 30000,
     fromCase: 0,
     toCase: Number.MAX_SAFE_INTEGER,
+    plant: null,
   });
 });
 

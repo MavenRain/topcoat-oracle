@@ -225,7 +225,11 @@ const runCase = (plan, options) =>
   new Promise((resolve) => {
     const worker = new Worker(WORKER_URL, {
       workerData: { lineText: plan.text },
-      argv: ["--clone", options.clonePath],
+      argv: [
+        "--clone",
+        options.clonePath,
+        ...(options.plant === null ? [] : ["--plant", options.plant.name]),
+      ],
     });
     // One phase and one timer at a time.  The holder is a const and
     // only its properties move, the way resolve-hook.mjs holds its one

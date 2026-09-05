@@ -71,7 +71,7 @@ let check_render () =
       Alcotest.(check string)
         ("render row " ^ string_of_int i)
         (snd row)
-        (Ref_leg.rendered_of_value (fst row)))
+        (Ref_leg.rendered_of_value Ref_leg.default_config.Ref_leg.ops (fst row)))
     render_rows
 
 (* ---------- group 3: the outcome rules ---------- *)
@@ -96,7 +96,9 @@ let check_fuel () =
   Alcotest.(check string)
     "fuel 0 on case 0" {j|Pother:10:stuck:init|r0:||j}
     (Option.fold ~none:"<missing case>"
-       ~some:(fun s -> Obs.encode (Ref_leg.observe { Ref_leg.fuel = 0 } s))
+       ~some:(fun s ->
+         Obs.encode
+           (Ref_leg.observe { Ref_leg.default_config with Ref_leg.fuel = 0 } s))
        (Prelude.nth_opt Driver.seed_cases 0))
 
 (* ---------- group 5: the hints ---------- *)

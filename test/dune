@@ -49,3 +49,7 @@
 (test
  (name test_differ)
  (libraries oracle_core alcotest))
+
+(test
+ (name test_plant)
+ (libraries oracle_core oracle_shell alcotest))

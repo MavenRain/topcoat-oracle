@@ -19,6 +19,7 @@ type config = {
   clone : string;
   timeout_ms : int;
   startup_timeout_ms : int;
+  plant : Plant.t;
 }
 
 (* The shape mirrors Rust_leg.default_config ~root
@@ -32,6 +33,7 @@ let default_config ~(root : string) : config =
     clone = root ^ "/../topcoat";
     timeout_ms = 2000;
     startup_timeout_ms = 30000;
+    plant = Plant.No_plant;
   }
 
 type error =
@@ -85,7 +87,11 @@ type report = {
    their default values, spelled out rather than defaulted, so the gate
    log records the budget that actually ran.  The list is handed to
    Unix.create_process as both the program and the argument array:  no
-   shell, no Sys.command, and no command line is ever concatenated. *)
+   shell, no Sys.command, and no command line is ever concatenated.
+
+   A js plant appends two more elements at the END (spec 5.2).
+   Plant.js_args is the empty list for No_plant and for a ref plant, so
+   these fifteen positions never move. *)
 let argv (cfg : config) ~(rust : string) ~(out : string) : string list =
   [
     cfg.node;
@@ -104,6 +110,7 @@ let argv (cfg : config) ~(rust : string) ~(out : string) : string list =
     "--startup-timeout-ms";
     nat_to_string cfg.startup_timeout_ms;
   ]
+  @ Plant.js_args cfg.plant
 
 (* ---------- the adapters over shell/rust_leg.ml ---------- *)
 

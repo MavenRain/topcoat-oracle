@@ -183,6 +183,38 @@ legs produced twelve observations and the js driver exited 0, 1 on any
 named error and 2 on a usage error.  A diverge or a leg_fail verdict is
 a result, not an error, so it does not move the exit code.
 
+## Planted oracle
+
+The gate proves the differ finds a bug it has never seen.  One binary,
+three runs, one flag:
+
+    dune exec bin/m27.exe -- seeds _emit/m24/out/seed.jsonl _emit/m28/out/ref \
+      --clone ../topcoat --root . --plant ref:display_sign
+    dune exec bin/m27.exe -- seeds _emit/m24/out/seed.jsonl _emit/m28/out/js \
+      --clone ../topcoat --root . --plant js:signal_get_plus_one
+    dune exec bin/m27.exe -- seeds _emit/m24/out/seed.jsonl _emit/m28/out/none \
+      --clone ../topcoat --root .
+
+The runs need the m24 capture, the topcoat clone beside this repo and
+node v23.10 or later, the same prerequisites the m27 gate names.
+
+The first run plants the reference leg: it renders every float with the
+sign flipped, so cases 0, 3 and 6 print `diverge:rendered:odd:ref`.
+The second plants the js leg: a signal read returns one more than the
+stored number, so case 6 prints `diverge:value:odd:js` while its
+signals cell holds.  The third plants nothing and prints the m27 table
+byte for byte.
+
+A planted run writes one extra stderr line, `plant: ref:display_sign`
+or `plant: js:signal_get_plus_one`, immediately before the summary
+line.  A run with no `--plant` writes no such line.
+
+The exit codes do not move: a divergence is a result and never an
+error, so all three runs exit 0.  An unknown plant name, such as
+`--plant ref:nope`, is a usage error and exits 2.
+
+`m28_gate.sh` runs all three and `m28_verdict.sh` adjudicates them.
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the
