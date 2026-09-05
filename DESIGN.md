@@ -305,6 +305,26 @@ Phase D: legs and differ
   M34 grows it with the corpus.
 - M29 minimizer: shrink loop re-executing legs, divergence-preserving.
   Gate: planted divergence minimizes below a size bound.
+
+  The loop is core/minimize.ml and is pure: the three legs enter as one
+  injected function, so the whole walk is testable with a fake oracle
+  that runs nothing.  One round offers every candidate of
+  Shrink.cands at the sample's target type, then one drop per binding
+  the body never mentions, and the loop moves to the FIRST candidate
+  whose verdict is a Diverge on the same channel with the same split.
+  Agree, Known, Leg_fail and a run that produced no line never
+  preserve, so a timeout can lose a shrink but can never invent one.
+  A round is one batch: one crate, one build, one node start, one
+  reference pass.  Every accepted step lowers Shrink.size plus the
+  binding count by at least one, so the walk terminates; the round fuel
+  is a second bound and a stop reason, never an error.  A round whose
+  answers are ALL no-verdicts is a third stop, Stuck, which carries the
+  runner's reason: blind legs are not a fixpoint and the gate names
+  them.  bin/m29.ml
+  prints the walk and then runs the minimized sample once more with NO
+  plant, and that control must agree: a divergence that survives with
+  no plant was never the planted one.  m29_gate.sh runs both plants and
+  compares the two walks with the hand-derived tables of the M29 spec.
 - M30 repro emitter: self-contained markdown (Rust source, emitted JS,
   three observations, SHAs, seed). Gate: golden repro for the planted
   bug.

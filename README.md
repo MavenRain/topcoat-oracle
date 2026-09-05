@@ -215,6 +215,44 @@ error, so all three runs exit 0.  An unknown plant name, such as
 
 `m28_gate.sh` runs all three and `m28_verdict.sh` adjudicates them.
 
+## Minimizer
+
+`bin/m29.exe` shrinks a diverging sample to a small one that diverges the
+same way.
+
+    m29 minimize <dir> --plant ref:display_sign|js:signal_get_plus_one \
+        [--clone <dir>] [--root <dir>] [--fuel <n>]
+
+One round asks the M19 shrinker for every candidate of the body at its
+target type, adds one candidate per binding the body never mentions, runs
+the whole batch through the three legs in one pass, and moves to the first
+candidate whose verdict is the same divergence: the same channel and the
+same odd leg.  A candidate that agrees, that hits a known difference, that
+makes a leg fail or that produced no line at all is refused, so the loop
+stays on one bug.
+
+The loop stops when no candidate of a round preserves the divergence.  That
+is a fixpoint, and it is what the gate requires;  the `--fuel` bound is a
+second stop and never an error.  A round that gets NO verdict back at all,
+because a leg failed or the crate writer dropped the whole batch, is a third
+stop: `m29 stop: stuck <reason>`.  A stuck run is red, with the reason
+named, because a small sample produced by blind legs proves nothing.
+
+The last line of a run is a control: the minimized sample run once more with
+no plant, which must agree.  Print the walk to see the size fall round by
+round:
+
+    round 0 size 13 cands 9 accepted 2
+    round 1 size 8 cands 6 accepted 1
+    ...
+    m29 body: v3.get()
+    m29 signal v3: f64 = 2.5
+    m29 stop: fixpoint rounds 6 candidates 25
+    m29 control: agree
+
+`./m29_gate.sh` runs both plants and compares each walk with a table derived
+by hand from the shrinker's rules.
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the

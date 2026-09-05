@@ -158,32 +158,19 @@ let rec hint_diffs (n : int) (ss : Sample.t list) (ds : Wire.decoded list) :
    record and never in a pair of parallel lists, so the position zip
    below stays the three-list zip of bin/m26.ml:144-150 with its
    exhaustive seven-arm mismatch case. *)
-type refcell = { r_mode : Taxonomy.mode; r_obs : Obs.observation }
+(* The three-leg cells moved to shell/legs.ml for M29 (M29 spec section
+   5).  The minimizer runs the same three legs over a candidate batch,
+   so it must build the same cells and reach the same verdict as this
+   table.  Sharing the code is what makes that a compile-time fact
+   instead of a comment.  The type equation below re-exports the record
+   with its fields, so every use site in this file is unchanged. *)
+type refcell = Legs.refcell = {
+  r_mode : Taxonomy.mode;
+  r_obs : Obs.observation;
+}
 
-let ref_cell_of (cfg : Ref_leg.config) (s : Sample.t) : refcell =
-  { r_mode = s.Sample.mode; r_obs = Ref_leg.observe cfg s }
-
-(* Four of the five Wire_js constructors carry no observation.  The
-   Absent reason is Js_leg.cell itself, so it is BYTE-IDENTICAL to the
-   J cell this program prints for the same line, by construction and
-   not by a second spelling. *)
-let js_cell (l : Wire_js.jline) : Differ.cell =
-  match l.Wire_js.jl_body with
-  | Wire_js.Jl_obs (o, _x) -> Differ.Present o
-  | Wire_js.Jl_skipped _ | Wire_js.Jl_js_error (_, _)
-  | Wire_js.Jl_driver_error (_, _) | Wire_js.Jl_lossy _ ->
-      Differ.Absent (Js_leg.cell l)
-
-(* The rust and the reference cells are always Present today.  The type
-   carries Absent for M36's browser leg and for a rust line that fails
-   to decode, and no M27 path builds one (spec section 10). *)
-let cells_of (d : Wire.decoded) (l : Wire_js.jline) (o : Obs.observation) :
-    Differ.cells =
-  {
-    Differ.rust = Differ.Present d.Wire.d_obs;
-    js = js_cell l;
-    reference = Differ.Present o;
-  }
+let ref_cell_of = Legs.ref_cell_of
+let cells_of = Legs.cells_of
 
 (* by_design counts a Signal_writing case whose RUST cell is a
    signal_write panic.  It is informational, it is never a verdict, and

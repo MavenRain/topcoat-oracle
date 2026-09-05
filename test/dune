@@ -53,3 +53,7 @@
 (test
  (name test_plant)
  (libraries oracle_core oracle_shell alcotest))
+
+(test
+ (name test_minimize)
+ (libraries oracle_core oracle_shell alcotest))
