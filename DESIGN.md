@@ -266,7 +266,25 @@ Phase D: legs and differ
   each an Obs.encode, and the gate compares all 36 with a hand-derived
   table.
 - M27 core/differ.ml: verdict ADT (Agree, Diverge with channel and
-  legs, Known with tag, LegFail), subset-pure. Gate: unit vectors.
+  legs, Known with tag, Leg_fail), subset-pure. Gate: unit vectors. The
+  six channels are compared in one fixed order, outcome, class,
+  message, value, rendered and signals, and a channel is compared only
+  when every party projects a value on it, so a kind mismatch is
+  reported once on outcome and never again. Signals compare by id, so
+  their order is not a conformance surface. A Read_only sample has
+  three parties; a Signal_writing sample has two, the js leg and the
+  reference, because the server panics on every signal write by design,
+  so the rust cell of such a sample is not a party. An absent party
+  cell short-circuits to Leg_fail with the leg and the leg's own reason
+  text, in the order rust, js, reference. The walk classifies each
+  divergent channel as excused or not against a known list and reports
+  the first unexcused divergence, else the first excused channel's tag
+  as Known, else Agree, so an entry never masks a later unexcused
+  channel. core/differ.ml ships one entry, [ i1 ], for the case 10 class
+  divergence that finding I1 explains; M33 relocates and grows the
+  entries with upstream citations. The CLI prints a fourth line per
+  case, V, carrying the sample mode and the verdict text, and the gate
+  compares all 48 lines with a hand-derived table.
 - M28 planted-oracle gate: a deliberately mutated interpreter AND a
   deliberately mutated js stub must BOTH produce Diverge, then
   restore green. Gate: both planted bugs detected.

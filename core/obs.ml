@@ -92,5 +92,5 @@ let encode obs =
   ^ ":" ^ obs.rendered ^ "|" ^ encode_signals obs.signals
 
 (* Value/observation equality across legs lives in core/differ.ml
-   (M27): it needs a byte-string equality, which arrives as an
-   injected closure from the shell like the float ops do. *)
+   (M27): it needs a byte-string equality, and String.equal is admitted
+   by the subset, so nothing is injected from the shell. *)

@@ -150,6 +150,39 @@ The three cells disagree on five of the twelve cases, and every
 disagreement is an output of the pipeline rather than a defect in it.
 M27 adjudicates them.
 
+## Verdicts
+
+    ./m27_gate.sh
+
+Adjudicates the three observations of each seed case and prints a
+fourth line, V, carrying the sample mode and the verdict.  The three
+leg lines are the ones m26 prints, byte for byte, and the gate checks
+that too, so a verdict can never rewrite what a leg said.
+m24_gate.sh, m25_gate.sh and m26_gate.sh are prerequisites and the
+gate names the one whose output is missing.
+
+    ./_build/default/bin/m27.exe seeds _emit/m24/out/seed.jsonl \
+      _emit/m27/out --clone ../topcoat --root .
+
+Six channels are compared in a fixed order: outcome, class, message,
+value, rendered and signals.  A channel is compared only when every
+party has one, so a kind mismatch is reported once, on outcome.
+Signals compare by id, so their order is not a conformance surface.  A
+read-only sample has three parties.  A signal-writing sample has two,
+the js leg and the reference, because the server panics on every
+signal write by design.
+
+Verdicts are printed as agree, diverge:<channel>:<split> where a split
+is odd:<leg>, all or two_way, known:<tag>, or leg_fail:<leg>:<reason>.
+A known verdict names a divergence the pipeline already explains, and
+it never hides a later unexcused one.
+
+Flags: --clone <dir> (default ../topcoat) and --root <dir> (default
+M27_ROOT, else two levels above the out-dir).  Exit 0 when all three
+legs produced twelve observations and the js driver exited 0, 1 on any
+named error and 2 on a usage error.  A diverge or a leg_fail verdict is
+a result, not an error, so it does not move the exit code.
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the
