@@ -124,6 +124,10 @@ let start_dir (cfg : config) : string = cfg.l_out ^ "/rs"
    single dep prefix would be wrong there. *)
 let control_dir (cfg : config) : string = cfg.l_out ^ "/rc"
 
+(* The crate directory of the one witness run M30 asks for.  Beside the
+   rounds and at the same depth, so the one dep prefix holds here too. *)
+let witness_dir (cfg : config) : string = cfg.l_out ^ "/rp"
+
 (* The keep flags of a batch, rebuilt with the SAME fold
    Rust_leg.kept_samples uses (shell/rust_leg.ml:447-458).  A sample the
    fold does not count as kept is a sample the crate writer dropped, and
@@ -190,6 +194,43 @@ let rec verdicts (cfg : Ref_leg.config) (ps : (Sample.t * Wire.decoded) list)
 let all_no (samples : Sample.t list) (why : string) : Minimize.answer list =
   map (fun _ -> Minimize.A_no_verdict why) samples
 
+(* Run the two spawning legs over one batch in one directory and answer
+   the paired rust lines beside the js lines, or the first error text.
+   This is the bind chain run_batch used to hold, lifted out so the one
+   sample witness run of M30 uses the same spawns in the same order with
+   the same reason texts.  The two guard arms live here and not in the
+   caller because both are statements about the RUN, and a witness needs
+   them as much as a batch does. *)
+let legs_lines (cfg : config) ~(dir : string) (samples : Sample.t list) :
+    ((Sample.t * Wire.decoded) list * Wire_js.jline list, string) result =
+  Result.bind
+    (Result.map_error
+       (fun e -> "rust leg: " ^ Rust_leg.error_text e)
+       (Rust_leg.run cfg.l_rust ~name:cfg.l_name ~dir samples))
+    (fun rep ->
+      Result.bind
+        (Result.map_error
+           (fun e -> "rust pairing: " ^ Rust_leg.error_text e)
+           (Rust_leg.pair samples rep))
+        (fun ps ->
+          Result.bind
+            (Result.map_error
+               (fun e -> "js leg: " ^ Js_leg.error_text e)
+               (Js_leg.run cfg.l_js ~rust:(dir ^ "/run.jsonl") ~dir))
+            (fun jrep ->
+              match () with
+              | () when not (jrep.Js_leg.j_exit = 0) ->
+                  Error
+                    ("the js driver exited " ^ nat_to_string jrep.Js_leg.j_exit)
+              | () when not (len ps = len jrep.Js_leg.j_lines) ->
+                  Error
+                    ("the rust leg kept "
+                    ^ nat_to_string (len ps)
+                    ^ " candidates and the js leg decoded "
+                    ^ nat_to_string (len jrep.Js_leg.j_lines)
+                    ^ " lines")
+              | () -> Ok (ps, jrep.Js_leg.j_lines))))
+
 (* Run one batch in one directory and answer one entry per candidate, in
    the candidates' own order.  Every failure of every leg becomes a
    no-verdict for the whole batch with a named reason, so the loop never
@@ -197,39 +238,10 @@ let all_no (samples : Sample.t list) (why : string) : Minimize.answer list =
 let run_batch (cfg : config) ~(dir : string) (samples : Sample.t list) :
     Minimize.answer list =
   Result.fold
-    ~ok:(fun answers -> answers)
+    ~ok:(fun pl ->
+      spread (keep_flags samples) (verdicts cfg.l_ref (fst pl) (snd pl)))
     ~error:(fun why -> all_no samples why)
-    (Result.bind
-       (Result.map_error
-          (fun e -> "rust leg: " ^ Rust_leg.error_text e)
-          (Rust_leg.run cfg.l_rust ~name:cfg.l_name ~dir samples))
-       (fun rep ->
-         Result.bind
-           (Result.map_error
-              (fun e -> "rust pairing: " ^ Rust_leg.error_text e)
-              (Rust_leg.pair samples rep))
-           (fun ps ->
-             Result.bind
-               (Result.map_error
-                  (fun e -> "js leg: " ^ Js_leg.error_text e)
-                  (Js_leg.run cfg.l_js ~rust:(dir ^ "/run.jsonl") ~dir))
-               (fun jrep ->
-                 match () with
-                 | () when not (jrep.Js_leg.j_exit = 0) ->
-                     Error
-                       ("the js driver exited "
-                       ^ nat_to_string jrep.Js_leg.j_exit)
-                 | () when not (len ps = len jrep.Js_leg.j_lines) ->
-                     Error
-                       ("the rust leg kept "
-                       ^ nat_to_string (len ps)
-                       ^ " candidates and the js leg decoded "
-                       ^ nat_to_string (len jrep.Js_leg.j_lines)
-                       ^ " lines")
-                 | () ->
-                     Ok
-                       (spread (keep_flags samples)
-                          (verdicts cfg.l_ref ps jrep.Js_leg.j_lines))))))
+    (legs_lines cfg ~dir samples)
 
 (* R1 and R2, the injected function core/minimize.ml runs on.  The round
    index names the directory, which is the only use it has here. *)
@@ -257,3 +269,53 @@ let control (cfg : config) (s : Sample.t) : Minimize.answer =
     ~none:(Minimize.A_no_verdict "the control run answered nothing")
     ~some:(fun a -> a)
     (nth_opt (run_batch (unplanted cfg) ~dir:(control_dir cfg) (s :: [])) 0)
+
+(* The three cells and the verdict of ONE witness run.  The mode comes
+   from wi_ref.r_mode, because a Wire.decoded carries no mode at all. *)
+type witness = {
+  wi_rust : Wire.decoded;
+  wi_js : Wire_js.jline;
+  wi_ref : refcell;
+  wi_verdict : Differ.verdict;
+}
+
+(* Assemble one witness from the three leg answers and adjudicate it
+   exactly as a batch row is adjudicated, with the same three arguments
+   in the same order as verdicts. *)
+let witness_of (r : refcell) (d : Wire.decoded) (l : Wire_js.jline) : witness =
+  {
+    wi_rust = d;
+    wi_js = l;
+    wi_ref = r;
+    wi_verdict =
+      Differ.verdict r.r_mode (Differ.known_seed ()) (cells_of d l r.r_obs);
+  }
+
+(* Run one sample once more, in witness_dir, and answer its three cells
+   and its verdict.  A dropped sample, a rust count other than ONE and a
+   js count other than ONE are errors with named text: a round run.jsonl
+   can hold a refused line beside the accepted one, so the caller turns
+   any of those into a red gate rather than into a repro file with a hole
+   in it. *)
+let witness (cfg : config) (s : Sample.t) : (witness, string) result =
+  Result.bind (legs_lines cfg ~dir:(witness_dir cfg) (s :: [])) (fun pl ->
+      let rl = fst pl in
+      let jl = snd pl in
+      match () with
+      | () when Int.equal (len rl) 0 -> Error dropped_text
+      | () when not (Int.equal (len rl) 1) ->
+          Error
+            ("the witness run answered " ^ nat_to_string (len rl)
+           ^ " rust lines, one was expected")
+      | () when not (Int.equal (len jl) 1) ->
+          Error
+            ("the witness run answered " ^ nat_to_string (len jl)
+           ^ " js lines, one was expected")
+      | () ->
+          Option.fold ~none:(Error lost_text)
+            ~some:(fun p ->
+              Option.fold ~none:(Error lost_text)
+                ~some:(fun j ->
+                  Ok (witness_of (ref_cell_of cfg.l_ref (fst p)) (snd p) j))
+                (nth_opt jl 0))
+            (nth_opt rl 0))

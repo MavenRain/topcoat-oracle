@@ -253,6 +253,26 @@ round:
 `./m29_gate.sh` runs both plants and compares each walk with a table derived
 by hand from the shrinker's rules.
 
+## Repro files
+
+`bin/m30.exe` turns one finished walk into one shareable file.
+
+    dune exec bin/m30.exe -- repro _emit/m30/out/<plant> --plant <plant> \
+        [--clone <dir>] [--root <dir>] [--fuel <n>]
+
+It prints the same walk m29 prints, runs the final sample once more to earn
+a witness, and writes `<dir>/repro.md`: the provenance with both repository
+shas, the minimized program, the emitted JS, the two sizes, the four witness
+cells, the walk trace and the two commands that reproduce it.  A witness that
+does not preserve the divergence writes no file and exits 1.
+
+Pass the directory RELATIVE to the root, as above, for a shareable repro:  the
+directory is printed into the file exactly as it arrives, so an absolute path
+on the command line would put a local path in a file meant for someone else.
+
+`./m30_gate.sh` writes both repro files and compares them with hand derived
+goldens, masking the oracle sha and the per crate signal id.
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the

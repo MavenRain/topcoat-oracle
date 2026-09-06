@@ -158,6 +158,25 @@ let mkdir_one (path : string) : (unit, error) result =
       | () when e = Unix.EEXIST -> Ok ()
       | () -> Error (Er_mkdir (path, Unix.error_message e)))
 
+(* Check an existing path at the Unix boundary, including symlinks to
+   directories.  EEXIST alone also admits ordinary files. *)
+let directory_res (path : string) : (unit, error) result =
+  try
+    let st = Unix.stat path in
+    if st.Unix.st_kind = Unix.S_DIR then Ok ()
+    else Error (Er_mkdir (path, Unix.error_message Unix.ENOTDIR))
+  with
+  | Unix.Unix_error (e, _, _) -> Error (Er_mkdir (path, Unix.error_message e))
+
+(* Prepare the walk output directory and its parents.  Stop at the path
+   root, and propagate permission and non-directory errors unchanged. *)
+let rec mkdir_parents (path : string) : (unit, error) result =
+  let parent = Filename.dirname path in
+  if String.equal parent path then directory_res path
+  else
+    Result.bind (mkdir_parents parent) (fun () ->
+        Result.bind (mkdir_one path) (fun () -> directory_res path))
+
 let open_read (path : string) : (Unix.file_descr, error) result =
   try Ok (Unix.openfile path [ Unix.O_RDONLY ] 0o644) with
   | Unix.Unix_error (e, _, _) -> Error (Er_read (path, Unix.error_message e))

@@ -328,6 +328,24 @@ Phase D: legs and differ
 - M30 repro emitter: self-contained markdown (Rust source, emitted JS,
   three observations, SHAs, seed). Gate: golden repro for the planted
   bug.
+
+  M29 shrinks a divergence to a small sample.  M30 writes down what it
+  found.  `m30 repro <dir> --plant P` runs the same walk, prints the
+  same text, then runs the final sample ONE more time to earn a
+  witness, and writes `<dir>/repro.md` with nine blocks: the title,
+  the provenance, the program, the emitted JS, the sizes, the four
+  witness cells, the walk trace, how to reproduce it and what to look
+  for.  Two properties hold by
+  construction.  The renderer is a pure function in core/repro.ml, so
+  the same walk renders the same bytes: no date, no host name and no
+  absolute path enters the file.  The witness is one more planted run
+  of the final sample in <dir>/rp, and it must satisfy
+  Minimize.preserves, so a repro file cannot record a difference the
+  walk did not keep.  The two shas in the provenance block come from
+  git rev-parse HEAD in the clone and in this repository, so a reader
+  knows which pair of trees the file is about.  The walk itself moved
+  to shell/walk.ml so both binaries run one copy of it, and the
+  unedited m29 gate is the proof that its printed bytes did not move.
 - M31 pipeline CLI: run --samples N --seed S, journal + resume.
   Gate: 500-sample smoke completes and replays.
 
