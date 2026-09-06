@@ -115,6 +115,12 @@ let unplanted (cfg : config) : config =
 let round_dir (cfg : config) (k : int) : string =
   cfg.l_out ^ "/r" ^ nat_to_string k
 
+(* The crate directory of the M31 batch whose FIRST sample index is n.  It
+   sits one level below l_out, at the same depth as a round directory, so the
+   one dep_prefix above is right for a batch crate too. *)
+let batch_dir (cfg : config) (n : int) : string =
+  cfg.l_out ^ "/b" ^ nat_to_string n
+
 (* The crate directory of the start measurement.  Beside the rounds and
    at the same depth, so the one dep prefix holds. *)
 let start_dir (cfg : config) : string = cfg.l_out ^ "/rs"

@@ -65,3 +65,7 @@
 (test
  (name test_walk_io)
  (libraries oracle_core oracle_shell unix))
+
+(test
+ (name test_journal)
+ (libraries oracle_core))

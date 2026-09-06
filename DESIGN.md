@@ -349,6 +349,27 @@ Phase D: legs and differ
 - M31 pipeline CLI: run --samples N --seed S, journal + resume.
   Gate: 500-sample smoke completes and replays.
 
+  M30 writes one repro by hand;  M31 runs the corpus.  `m31 run <dir>
+  --samples N --seed S` draws N samples from one seed, runs them in batches
+  of `--batch` (100 by default) through the same three legs M29 uses, and
+  appends one JSON line per sample to `<dir>/journal.jsonl`: the index, the
+  mode, the size, the verdict, the three cells and the program that produced
+  them.  The first line is a header carrying the seed, the batch size, the
+  plant and the sha of the clone, so a journal names the run that wrote it.
+
+  A second `m31 run` of the same directory CONTINUES it.  There is no
+  `--resume` flag: the CLI decodes the journal, refuses a header that
+  disagrees with the flags, and starts at the first index the file does not
+  hold.  A resumed run draws N samples and drops the ones already written, so
+  its batch boundaries differ from a straight run's and its journal bytes do
+  not.  `m31 replay <dir>` prints the summary of an existing journal and
+  spawns nothing at all;  the summary is computed from the decoded journal in
+  both cases, so a run and a replay print the same bytes.
+
+  The journal is data, not a log.  `core/journal.ml` is pure, is inside the
+  ZxCaml subset and has no I/O, so M34 and M35 read a journal with the codec
+  and no process.
+
 Phase E: campaign and delivery
 - M32 correspondence gate: run log validates against model/frame.ml
   edges; a mutated log is rejected. Gate: both directions checked.

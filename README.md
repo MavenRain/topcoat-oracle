@@ -273,10 +273,31 @@ on the command line would put a local path in a file meant for someone else.
 `./m30_gate.sh` writes both repro files and compares them with hand derived
 goldens, masking the oracle sha and the per crate signal id.
 
+## Pipeline
+
+`m31 run <dir> --samples N --seed S` draws N samples from one seed and runs
+them through the three legs in batches, appending one JSON line per sample to
+`<dir>/journal.jsonl`.  The line carries the index, the mode, the size, the
+verdict, the three observation cells and the Rust program.  Running the same
+command again on the same directory continues the run;  a header that
+disagrees with the flags is refused instead of appended to.
+
+`m31 replay <dir>` prints the summary of a journal and runs nothing.  The
+summary is computed from the decoded journal, so a run and a replay of the
+same directory print the same bytes.
+
+`<dir>` must sit four directories below the repository root, as
+`_emit/m31/out/<name>` does, because the generated crates resolve their
+dependencies by a fixed relative path (see DESIGN.md, the M29 entry).
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the
 negative-control expectations (see DESIGN.md section 4).
+
+The gate ladder runs m20 through m31.  M31 is the newest milestone: one
+seeded run of the corpus writes one journal, and a second run of the same
+directory continues it.
 
 ## License
 
