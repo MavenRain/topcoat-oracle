@@ -17,4 +17,5 @@ zxlint --errors-only "$ROOT"/core/*.ml
 "$ROOT/m29_gate.sh"
 "$ROOT/m30_gate.sh"
 "$ROOT/m31_gate.sh"
+"$ROOT/m32_gate.sh"
 echo "GATES GREEN"

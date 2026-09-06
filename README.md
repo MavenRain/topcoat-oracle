@@ -290,14 +290,46 @@ same directory print the same bytes.
 `_emit/m31/out/<name>` does, because the generated crates resolve their
 dependencies by a fixed relative path (see DESIGN.md, the M29 entry).
 
+## Correspondence
+
+A run writes a second file beside the journal.  `<dir>/trace.jsonl` holds one
+header line and one line per sample.  A sample line is
+`{"i":N,"steps":["shape_ok","print_ok","compile_ok","exec_rust_ok","exec_js_ok","exec_ref_ok","judge_agree"]}`.
+The step names are the transition names of the CTLK model in `model/frame.ml`.
+
+`m32 check <dir>` reads the journal and the trace together and checks both
+directions.  It prints one report line, `m32 check <dir>: 500 lines,
+dropped_agree 77, dropped_known 0, minimizing_hi 10, gen_bug 0, leg_failed 413,
+oracle_bug 0`, and exits 0.  It exits 1 on the first line that does not
+correspond and names the line and the check on stderr.  It exits 2 on a usage
+error or a missing file.
+
+The step list of a sample is decided by its row kind and by its three cells.
+A position the crate writer refused, and a batch that lost its leg before the
+crate ran, walk shape, print and a compile failure into `gen_bug`.  A batch
+that lost a leg after the crate ran, and a kept position with no rust line,
+crash both product legs and walk `judge_infra` into `leg_failed`, which is the
+one end stage the checker allows either of them, because the reference leg of
+such a row always answers.  A kept and paired position reads all three legs
+off their cells and takes the judge step its verdict head asks for.
+
+Two findings are recorded here rather than fixed.  First, the differ names the
+first missing party in the order rust, js, reference, and the model sends a
+crashed reference to `oracle_bug` before it reads the other legs;  the checker
+only requires the leg the verdict names to have crashed, and accepts the
+model's choice of terminal.  Second, a signal writing sample's rust cell is not
+a party for the differ, so such a sample can agree with a missing rust cell,
+and the model has no `judge_agree` edge from a world whose rust leg crashed.
+The checker rejects such a row.  No run of the gate produces one today.
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the
 negative-control expectations (see DESIGN.md section 4).
 
-The gate ladder runs m20 through m31.  M31 is the newest milestone: one
-seeded run of the corpus writes one journal, and a second run of the same
-directory continues it.
+The gate ladder runs m20 through m32.  M32 is the newest milestone: a run emits
+a transition log beside its journal, and a checker validates the log against the
+model in both directions.
 
 ## License
 

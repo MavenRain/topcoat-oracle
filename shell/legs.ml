@@ -200,6 +200,41 @@ let rec verdicts (cfg : Ref_leg.config) (ps : (Sample.t * Wire.decoded) list)
 let all_no (samples : Sample.t list) (why : string) : Minimize.answer list =
   map (fun _ -> Minimize.A_no_verdict why) samples
 
+(** Why a whole batch lost a leg.  M31 answered a bare string here;  M32 needs
+    the ORIGIN of the failure to tell a batch that died before the crate ran
+    from one that died after (ruling R7).  [batch_error_text] is the M31 text
+    unedited, so no caller sees a new byte. *)
+type batch_error =
+  | Be_rust of Rust_leg.run_failure
+  | Be_pair of Rust_leg.error
+  | Be_js of Js_leg.error
+  | Be_js_exit of int
+  | Be_count of int * int
+
+(** [Before_crate] means no crate of this batch ran, so no sample of it has a
+    rust observation and none has a reference observation either.
+    [After_crate] means the crate ran and wrote its lines, so the reference
+    leg can still answer for every sample. *)
+type origin = Before_crate | After_crate
+
+let batch_error_text (e : batch_error) : string =
+  match e with
+  | Be_rust r -> "rust leg: " ^ Rust_leg.error_text r.Rust_leg.rf_error
+  | Be_pair r -> "rust pairing: " ^ Rust_leg.error_text r
+  | Be_js j -> "js leg: " ^ Js_leg.error_text j
+  | Be_js_exit n -> "the js driver exited " ^ nat_to_string n
+  | Be_count (kept, lines) ->
+      "the rust leg kept " ^ nat_to_string kept
+      ^ " candidates and the js leg decoded " ^ nat_to_string lines ^ " lines"
+
+let batch_origin (e : batch_error) : origin =
+  match e with
+  | Be_rust r -> (
+      match r.Rust_leg.rf_origin with
+      | Rust_leg.Before_crate -> Before_crate
+      | Rust_leg.After_crate -> After_crate)
+  | Be_pair _ | Be_js _ | Be_js_exit _ | Be_count _ -> After_crate
+
 (* Run the two spawning legs over one batch in one directory and answer
    the paired rust lines beside the js lines, or the first error text.
    This is the bind chain run_batch used to hold, lifted out so the one
@@ -208,33 +243,25 @@ let all_no (samples : Sample.t list) (why : string) : Minimize.answer list =
    caller because both are statements about the RUN, and a witness needs
    them as much as a batch does. *)
 let legs_lines (cfg : config) ~(dir : string) (samples : Sample.t list) :
-    ((Sample.t * Wire.decoded) list * Wire_js.jline list, string) result =
+    ((Sample.t * Wire.decoded) list * Wire_js.jline list, batch_error) result =
   Result.bind
     (Result.map_error
-       (fun e -> "rust leg: " ^ Rust_leg.error_text e)
-       (Rust_leg.run cfg.l_rust ~name:cfg.l_name ~dir samples))
+       (fun e -> Be_rust e)
+       (Rust_leg.run_with_origin cfg.l_rust ~name:cfg.l_name ~dir samples))
     (fun rep ->
       Result.bind
-        (Result.map_error
-           (fun e -> "rust pairing: " ^ Rust_leg.error_text e)
-           (Rust_leg.pair samples rep))
+        (Result.map_error (fun e -> Be_pair e) (Rust_leg.pair samples rep))
         (fun ps ->
           Result.bind
             (Result.map_error
-               (fun e -> "js leg: " ^ Js_leg.error_text e)
+               (fun e -> Be_js e)
                (Js_leg.run cfg.l_js ~rust:(dir ^ "/run.jsonl") ~dir))
             (fun jrep ->
               match () with
               | () when not (jrep.Js_leg.j_exit = 0) ->
-                  Error
-                    ("the js driver exited " ^ nat_to_string jrep.Js_leg.j_exit)
+                  Error (Be_js_exit jrep.Js_leg.j_exit)
               | () when not (len ps = len jrep.Js_leg.j_lines) ->
-                  Error
-                    ("the rust leg kept "
-                    ^ nat_to_string (len ps)
-                    ^ " candidates and the js leg decoded "
-                    ^ nat_to_string (len jrep.Js_leg.j_lines)
-                    ^ " lines")
+                  Error (Be_count (len ps, len jrep.Js_leg.j_lines))
               | () -> Ok (ps, jrep.Js_leg.j_lines))))
 
 (* Run one batch in one directory and answer one entry per candidate, in
@@ -246,7 +273,7 @@ let run_batch (cfg : config) ~(dir : string) (samples : Sample.t list) :
   Result.fold
     ~ok:(fun pl ->
       spread (keep_flags samples) (verdicts cfg.l_ref (fst pl) (snd pl)))
-    ~error:(fun why -> all_no samples why)
+    ~error:(fun e -> all_no samples (batch_error_text e))
     (legs_lines cfg ~dir samples)
 
 (* R1 and R2, the injected function core/minimize.ml runs on.  The round
@@ -304,7 +331,10 @@ let witness_of (r : refcell) (d : Wire.decoded) (l : Wire_js.jline) : witness =
    any of those into a red gate rather than into a repro file with a hole
    in it. *)
 let witness (cfg : config) (s : Sample.t) : (witness, string) result =
-  Result.bind (legs_lines cfg ~dir:(witness_dir cfg) (s :: [])) (fun pl ->
+  Result.bind
+    (Result.map_error batch_error_text
+       (legs_lines cfg ~dir:(witness_dir cfg) (s :: [])))
+    (fun pl ->
       let rl = fst pl in
       let jl = snd pl in
       match () with

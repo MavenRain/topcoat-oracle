@@ -373,6 +373,30 @@ Phase D: legs and differ
 Phase E: campaign and delivery
 - M32 correspondence gate: run log validates against model/frame.ml
   edges; a mutated log is rejected. Gate: both directions checked.
+
+  M31 writes the journal;  M32 writes a second file beside it.  A run of
+  `m31 run <dir>` now appends `<dir>/trace.jsonl` in the same batch step as the
+  journal: one header line with the journal header's four fields under the key
+  `m32`, then one line per sample carrying the index and the model steps that
+  sample walked.  The step names are the constructors of `model/frame.ml`, so a
+  change to the model breaks the build of `shell/correspond.ml` and not a test.
+
+  `m32 check <dir>` reads both files and checks both directions.  The log
+  against the model: every step of every line is an edge of `Frame.steps` from
+  the world the line has reached, and the line ends in a model terminal, or in
+  `minimizing_hi` when the verdict diverged, because M31 does not shrink.  The
+  journal against the log: the two headers agree, the line counts and the
+  indices agree, each leg ran in the log exactly when its journal cell is a
+  cell, the judge step matches the verdict head, the end stage matches the
+  disposition, and a `leg_fail` verdict names a leg that crashed.  The checker
+  prints one report line and exits 0, and on the first line that does not
+  correspond it prints nothing on stdout and names the line and the check on
+  stderr.
+
+  The journal is still data, not a log.  The trace is the log.  It is a
+  second file, and `core/journal.ml` does not change.  A resumed run requires the
+  trace to hold as many sample lines as the journal and refuses a directory in
+  which they disagree;  it repairs nothing.
 - M33 known-divergence allowlist, each entry backed by an upstream doc
   or source citation. Gate: allowlist review.
 - M34 campaign 1: 5k+ mixed samples, dedup by construct signature.

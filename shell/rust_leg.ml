@@ -514,38 +514,68 @@ let last_code (codes : int list) : int = fold (fun _ c -> c) 0 codes
 
 (* ---------- end to end (spec 4.6) ---------- *)
 
-let run (cfg : config) ~(name : string) ~(dir : string)
-    (samples : Sample.t list) : (report, error) result =
+type origin = Before_crate | After_crate
+
+type run_failure = { rf_origin : origin; rf_error : error }
+
+(* Successful completion and timeout are driver outcomes.  Other cargo
+   exits are ambiguous, but output on the driver's stdout proves execution.
+   This reads the file freshly truncated by the first spawn, never a prior
+   run's output.  Without evidence, retain the pre-execution classification. *)
+let origin_of_first ~(jsonl : string) (first : int) : origin =
+  match first with
+  | 0 | 3 | 4 -> After_crate
+  | _ ->
+      Result.fold ~error:(fun _ -> Before_crate)
+        ~ok:(fun text -> if String.equal text "" then Before_crate else After_crate)
+        (read_file jsonl)
+
+(* Keep the phase across every resume, read and decode failure.  In
+   particular a later spawn failure cannot undo a completed driver run. *)
+let finish_run (cfg : config) ~(name : string) ~(jsonl : string)
+    ~(err : string) ~(first : int) (samples : Sample.t list) :
+    (report, run_failure) result =
+  let origin = origin_of_first ~jsonl first in
+  Result.map_error (fun e -> { rf_origin = origin; rf_error = e })
+    (Result.bind
+       (resume_loop cfg ~name ~jsonl ~err ~code:first ~resumes:0
+          ~acc:[ first ])
+       (fun loop ->
+         let codes = fst loop in
+         Result.bind (check_code (last_code codes)) (fun final ->
+             Result.bind (read_file jsonl) (fun text ->
+                 Result.map
+                   (fun lines ->
+                     let built = Driver.build samples in
+                     {
+                       p_lines = lines;
+                       p_kept = built.Driver.kept;
+                       p_dropped = drop_counts built;
+                       p_resumes = snd loop;
+                       p_exits = codes;
+                       p_exit = final;
+                       p_inconsistent = inconsistent lines;
+                     })
+                   (decode_all (split_lines text) 1 [])))))
+
+let run_with_origin (cfg : config) ~(name : string) ~(dir : string)
+    (samples : Sample.t list) : (report, run_failure) result =
   let jsonl = dir ^ "/run.jsonl" in
   let err = dir ^ "/run.err" in
-  Result.bind (write_crate cfg ~name ~dir samples) (fun () ->
+  let before e = { rf_origin = Before_crate; rf_error = e } in
+  Result.bind (Result.map_error before (write_crate cfg ~name ~dir samples))
+    (fun () ->
       Result.bind
-        (spawn_once cfg
-           ~argv:(cargo_argv cfg ~manifest:(dir ^ "/Cargo.toml") ~from:None)
-           ~jsonl ~err ~append:false)
-        (fun first ->
-          Result.bind
-            (resume_loop cfg ~name ~jsonl ~err ~code:first ~resumes:0
-               ~acc:[ first ])
-            (fun loop ->
-              let codes = fst loop in
-              Result.bind
-                (check_code (last_code codes))
-                (fun final ->
-                  Result.bind (read_file jsonl) (fun text ->
-                      Result.map
-                        (fun lines ->
-                          let built = Driver.build samples in
-                          {
-                            p_lines = lines;
-                            p_kept = built.Driver.kept;
-                            p_dropped = drop_counts built;
-                            p_resumes = snd loop;
-                            p_exits = codes;
-                            p_exit = final;
-                            p_inconsistent = inconsistent lines;
-                          })
-                        (decode_all (split_lines text) 1 []))))))
+        (Result.map_error before
+           (spawn_once cfg
+              ~argv:(cargo_argv cfg ~manifest:(dir ^ "/Cargo.toml") ~from:None)
+              ~jsonl ~err ~append:false))
+        (fun first -> finish_run cfg ~name ~jsonl ~err ~first samples))
+
+(* Existing callers retain the original error type and diagnostic bytes. *)
+let run (cfg : config) ~(name : string) ~(dir : string)
+    (samples : Sample.t list) : (report, error) result =
+  Result.map_error (fun f -> f.rf_error) (run_with_origin cfg ~name ~dir samples)
 
 (* A drop shifts the DRAW index and never the kept index, which is why
    the zip is by position. *)

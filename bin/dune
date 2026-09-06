@@ -45,3 +45,8 @@
  (name m31)
  (modules m31)
  (libraries oracle_core oracle_shell qcheck-core))
+
+(executable
+ (name m32)
+ (modules m32)
+ (libraries oracle_core oracle_shell oracle_model))

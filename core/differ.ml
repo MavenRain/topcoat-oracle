@@ -60,13 +60,16 @@
      Minimizing_hi.
    - Known _ maps to V_known, frame edge Judge_known into the terminal
      Dropped_known.
-   - Leg_fail (_, _) maps to V_none, with no frame edge today.
+   - Leg_fail (_, _) maps to V_none, with no frame edge of its own.
      model/frame.ml:77-80 has no transition for a leg that produced no
      observation, because the three judge arms all start from a world
-     in which the legs ran.  V_none is the initial verdict of
-     model/state.ml:34, so a Leg_fail case is a world that never
-     reaches a judge edge, which is what a missing leg result means.
-     Whether M32 needs its own edge for it is an M32 question.
+     in which the legs ran.  M32 answers the question this comment used
+     to ask, and the answer is that no new edge is needed: the exec
+     steps of model/frame.ml:45-61 already carry a crashed leg into a
+     world whose judge arm is Judge_infra, so a Leg_fail case walks
+     Exec_<leg>_crash and then Judge_infra into Leg_failed, or into
+     Oracle_bug when the reference is the missing leg.  The walk lives
+     in shell/correspond.ml and model/ stays untouched.
 
    CAP, BOUND AND DROP INVENTORY, in the style of shell/cover.ml.
    - channels: six, one fixed order.  BOUND.  [channels ()] below.

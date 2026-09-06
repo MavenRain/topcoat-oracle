@@ -69,3 +69,13 @@
 (test
  (name test_journal)
  (libraries oracle_core))
+
+(test
+ (name test_correspond)
+ (modules test_correspond)
+ (libraries oracle_core oracle_shell oracle_model))
+
+(test
+ (name test_batch_origin)
+ (modules test_batch_origin)
+ (libraries oracle_core oracle_shell oracle_model))

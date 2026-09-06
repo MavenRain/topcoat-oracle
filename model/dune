@@ -1,4 +1,9 @@
+(library
+ (name oracle_model)
+ (wrapped false)
+ (modules state frame))
+
 (executable
  (name check)
- (modules state frame props check)
- (libraries ctlk_topos))
+ (modules props check)
+ (libraries ctlk_topos oracle_model))

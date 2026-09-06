@@ -29,6 +29,8 @@ type failure =
   | Pf_header of string
   | Pf_absent of string
   | Pf_short of string
+  | Pf_trace of string
+  | Pf_torn of string
 
 (** [failure_text f] is the text bin/m31.ml prints after "m31 failure: ". *)
 let failure_text (f : failure) : string =
@@ -41,9 +43,48 @@ let failure_text (f : failure) : string =
   | Pf_header m -> m
   | Pf_absent p -> "there is no journal at " ^ p
   | Pf_short m -> m
+  | Pf_trace m -> "the trace could not be written: " ^ m
+  | Pf_torn m -> m
 
 (** [journal_path dir] is the one journal of a run directory. *)
 let journal_path (dir : string) : string = dir ^ "/journal.jsonl"
+
+(** [trace_path dir] is the one transition log of a run directory.  It sits
+    beside the journal and is a SECOND file: the journal is data, not a log
+    (DESIGN.md:369-371), so the log does not enter it. *)
+let trace_path (dir : string) : string = dir ^ "/trace.jsonl"
+
+(** [trace_header_of h] is the trace header of a run whose journal header is
+    [h].  The four fields are the journal's own, in the journal's own order
+    (ruling R4). *)
+let trace_header_of (h : Journal.header) : Correspond.trace_header =
+  {
+    Correspond.th_seed = h.Journal.jh_seed;
+    Correspond.th_batch = h.Journal.jh_batch;
+    Correspond.th_plant = h.Journal.jh_plant;
+    Correspond.th_topcoat = h.Journal.jh_topcoat;
+  }
+
+(** One sample of a batch: its journal row and its model walk.  The two are
+    built together at row time from the SAME evidence, so a row can never
+    reach the journal without its own walk reaching the trace. *)
+type entry = { e_row : Journal.line; e_steps : Frame.tname list }
+
+(** [entry_text e] is the one trace line of an entry, newline free. *)
+let entry_text (e : entry) : string =
+  Correspond.encode_trace_line
+    {
+      Correspond.tl_i = e.e_row.Journal.jl_i;
+      Correspond.tl_steps = map Correspond.step_name e.e_steps;
+    }
+
+(** [presence_of c] carries a differ cell's presence to the checker.  This is
+    the pipeline's OWN predicate, so [Correspond.cell_presence] reads back
+    exactly what was written (ruling R8, check C3). *)
+let presence_of (c : Differ.cell) : Correspond.presence =
+  match c with
+  | Differ.Present _ -> Correspond.Cell_present
+  | Differ.Absent _ -> Correspond.Cell_absent
 
 (** [legs_config c] is the shipped M29 configuration with the M31 crate name.
     [l_out] is the RUN directory, so [Legs.batch_dir] puts every batch crate
@@ -178,21 +219,55 @@ let row ~(i : int) ~(verdict : string) ~(r : string) ~(j : string)
     Journal.jl_body = Walk.body_text s;
   }
 
+(** [no_line rcfg i s] is the K4 entry: the crate ran, the position was kept,
+    and the rust leg wrote no line for it.  The reference leg still answers,
+    so the row carries an f cell (ruling R6) and the walk crashes the two
+    product legs and reads the reference off its own cell. *)
+let no_line (rcfg : Ref_leg.config) (i : int) (s : Sample.t) : entry =
+  let rc = Legs.ref_cell_of rcfg s in
+  {
+    e_row =
+      row ~i ~verdict:"no_line" ~r:"" ~j:"" ~f:(Obs.encode rc.Legs.r_obs) s;
+    e_steps =
+      Correspond.steps_of
+        {
+          Correspond.ev_kind = Correspond.Kd_no_line;
+          Correspond.ev_rust = Correspond.Cell_absent;
+          Correspond.ev_js = Correspond.Cell_absent;
+          Correspond.ev_ref = Correspond.Cell_present;
+          Correspond.ev_head = "no_line";
+        };
+  }
+
 (** [rows_ok rcfg i ms samples ps ls] spreads the kept answers back over the
-    whole batch, with the shape of Legs.spread (shell/legs.ml:158-169), and
-    keeps the three CELLS that walk throws away.  A dropped position takes
-    "dropped" and consumes NO pair;  a kept position with no pair left takes
-    "no_line".  [legs_lines] already refuses a batch whose pair count and line
-    count disagree, so the two ragged arms below are totality clauses. *)
+    whole batch, with the shape of Legs.spread (shell/legs.ml:164-175), and
+    keeps the three CELLS that walk throws away.  Each position answers its
+    journal row AND its model walk, built from the same evidence (ruling R5).
+    A dropped position takes "dropped" and consumes NO pair;  a kept position
+    with no pair left takes "no_line" and STILL runs the reference leg, whose
+    cell it journals in f (ruling R6).  [legs_lines] already refuses a batch
+    whose pair count and line count disagree, so the two ragged arms below are
+    totality clauses. *)
 let rec rows_ok (rcfg : Ref_leg.config) (i : int) (ms : keep_mark list)
     (samples : Sample.t list) (ps : (Sample.t * Wire.decoded) list)
-    (ls : Wire_js.jline list) : Journal.line list =
+    (ls : Wire_js.jline list) : entry list =
   match (ms, samples) with
   | [], [] -> []
   | [], _ :: _ -> []
   | _ :: _, [] -> []
   | K_dropped :: mrest, s :: srest ->
-      row ~i ~verdict:"dropped" ~r:"" ~j:"" ~f:"" s
+      {
+        e_row = row ~i ~verdict:"dropped" ~r:"" ~j:"" ~f:"" s;
+        e_steps =
+          Correspond.steps_of
+            {
+              Correspond.ev_kind = Correspond.Kd_dropped;
+              Correspond.ev_rust = Correspond.Cell_absent;
+              Correspond.ev_js = Correspond.Cell_absent;
+              Correspond.ev_ref = Correspond.Cell_absent;
+              Correspond.ev_head = "dropped";
+            };
+      }
       :: rows_ok rcfg (i + 1) mrest srest ps ls
   | K_kept :: mrest, s :: srest -> (
       match (ps, ls) with
@@ -200,50 +275,88 @@ let rec rows_ok (rcfg : Ref_leg.config) (i : int) (ms : keep_mark list)
           let rc = Legs.ref_cell_of rcfg (fst p) in
           let cs = Legs.cells_of (snd p) l rc.Legs.r_obs in
           let v = Differ.verdict rc.Legs.r_mode (Differ.known_seed ()) cs in
-          row ~i
-            ~verdict:(Differ.verdict_text v)
-            ~r:(Obs.encode (snd p).Wire.d_obs)
-            ~j:(Js_leg.cell l)
-            ~f:(Obs.encode rc.Legs.r_obs)
-            s
+          let vt = Differ.verdict_text v in
+          {
+            e_row =
+              row ~i ~verdict:vt
+                ~r:(Obs.encode (snd p).Wire.d_obs)
+                ~j:(Js_leg.cell l)
+                ~f:(Obs.encode rc.Legs.r_obs)
+                s;
+            e_steps =
+              Correspond.steps_of
+                {
+                  Correspond.ev_kind = Correspond.Kd_paired;
+                  Correspond.ev_rust = presence_of cs.Differ.rust;
+                  Correspond.ev_js = presence_of cs.Differ.js;
+                  Correspond.ev_ref = presence_of cs.Differ.reference;
+                  Correspond.ev_head = Journal.head vt;
+                };
+          }
           :: rows_ok rcfg (i + 1) mrest srest prest lrest
-      | [], [] ->
-          row ~i ~verdict:"no_line" ~r:"" ~j:"" ~f:"" s
-          :: rows_ok rcfg (i + 1) mrest srest [] []
+      | [], [] -> no_line rcfg i s :: rows_ok rcfg (i + 1) mrest srest [] []
       | [], l :: lrest ->
           let _ = l in
-          row ~i ~verdict:"no_line" ~r:"" ~j:"" ~f:"" s
-          :: rows_ok rcfg (i + 1) mrest srest [] lrest
+          no_line rcfg i s :: rows_ok rcfg (i + 1) mrest srest [] lrest
       | _ :: prest, [] ->
-          row ~i ~verdict:"no_line" ~r:"" ~j:"" ~f:"" s
-          :: rows_ok rcfg (i + 1) mrest srest prest [])
+          no_line rcfg i s :: rows_ok rcfg (i + 1) mrest srest prest [])
 
-(** [rows_fail i why samples] is the batch that lost a leg: every sample takes
-    the SAME named reason, the three cells are "", the lines are appended and
-    the run CONTINUES (ruling R4).  [why] is the [Legs.legs_lines] error text
-    unedited, so its own prefix ("rust leg: ", "rust pairing: ", "js leg: ")
-    survives into the journal and into the summary. *)
-let rows_fail (i : int) (why : string) (samples : Sample.t list) :
-    Journal.line list =
+(** [rows_fail rcfg i be samples] is the batch that lost a leg: every sample
+    takes the SAME named reason, the run CONTINUES (ruling R4 of M31), and the
+    reason text is [Legs.batch_error_text] unedited, so its own prefix
+    ("rust leg: ", "rust pairing: ", "js leg: ") survives into the journal and
+    into the summary.  A batch that died BEFORE the crate ran has no reference
+    observation and writes three "" cells;  a batch that died AFTER the crate
+    ran still runs the reference leg and writes its f cell (ruling R6). *)
+let rows_fail (rcfg : Ref_leg.config) (i : int) (be : Legs.batch_error)
+    (samples : Sample.t list) : entry list =
+  let why = Legs.batch_error_text be in
+  let k =
+    match Legs.batch_origin be with
+    | Legs.Before_crate -> Correspond.Kd_build_lost
+    | Legs.After_crate -> Correspond.Kd_leg_lost
+  in
+  let f_of (s : Sample.t) : string =
+    match Legs.batch_origin be with
+    | Legs.Before_crate -> ""
+    | Legs.After_crate -> Obs.encode (Legs.ref_cell_of rcfg s).Legs.r_obs
+  in
+  let p_ref =
+    match Legs.batch_origin be with
+    | Legs.Before_crate -> Correspond.Cell_absent
+    | Legs.After_crate -> Correspond.Cell_present
+  in
   snd
     (fold
        (fun acc s ->
          ( fst acc + 1,
            append (snd acc)
-             (row ~i:(fst acc)
-                ~verdict:("batch_fail:" ^ why)
-                ~r:"" ~j:"" ~f:"" s
+             ({
+                e_row =
+                  row ~i:(fst acc)
+                    ~verdict:("batch_fail:" ^ why)
+                    ~r:"" ~j:"" ~f:(f_of s) s;
+                e_steps =
+                  Correspond.steps_of
+                    {
+                      Correspond.ev_kind = k;
+                      Correspond.ev_rust = Correspond.Cell_absent;
+                      Correspond.ev_js = Correspond.Cell_absent;
+                      Correspond.ev_ref = p_ref;
+                      Correspond.ev_head = "batch_fail";
+                    };
+              }
              :: []) ))
        (i, []) samples)
 
 (** [batch_rows lcfg first samples] runs ONE batch of the corpus and answers
-    its journal lines, whether the batch worked or lost a leg. *)
+    its entries, whether the batch worked or lost a leg. *)
 let batch_rows (lcfg : Legs.config) (first : int) (samples : Sample.t list) :
-    Journal.line list =
+    entry list =
   Result.fold
     ~ok:(fun pl ->
       rows_ok lcfg.Legs.l_ref first (marks samples) samples (fst pl) (snd pl))
-    ~error:(fun why -> rows_fail first why samples)
+    ~error:(fun be -> rows_fail lcfg.Legs.l_ref first be samples)
     (Legs.legs_lines lcfg ~dir:(Legs.batch_dir lcfg first) samples)
 
 (** [progress_text first samples rows] is the ONE line per batch the CLI
@@ -254,7 +367,7 @@ let batch_rows (lcfg : Legs.config) (first : int) (samples : Sample.t list) :
     samples an adjudication was made for, which is exactly the number of rows
     carrying a rust cell: a dropped, a no_line and a batch_fail row all carry
     "". *)
-let progress_text (first : int) (samples : Sample.t list)
+let progress_text_of (first : int) (samples : Sample.t list)
     (rows : Journal.line list) : string =
   "m31 batch b" ^ nat_to_string first ^ " cases " ^ nat_to_string (len samples)
   ^ " kept "
@@ -263,15 +376,23 @@ let progress_text (first : int) (samples : Sample.t list)
   ^ " verdicts "
   ^ nat_to_string (count (fun l -> not (String.equal l.Journal.jl_r "")) rows)
 
-(** [run_batches lcfg ~progress ~path ~batch first samples] runs the samples in
-    batches of [batch], in index order, appending each batch to the journal
-    before the next one starts.  The append is the ONLY write and it happens
-    once per batch, so a run killed between batches leaves a journal that ends
-    on a batch boundary, which is exactly what the resume of section 4.9
-    continues from. *)
+(** [progress_text first samples rows] is the M31 line over the entries of a
+    batch.  The entry carries the row, so the M31 body reads the rows and its
+    text does not change by one byte. *)
+let progress_text (first : int) (samples : Sample.t list) (rows : entry list) :
+    string =
+  progress_text_of first samples (map (fun e -> e.e_row) rows)
+
+(** [run_batches lcfg ~progress ~path ~tpath ~batch first samples] runs the
+    samples in batches, in index order, appending each batch to the journal
+    and then to the trace before the next batch starts.  The two appends are
+    the only writes and they happen once per batch, so a run killed between
+    batches leaves both files on a batch boundary.  A run killed BETWEEN the
+    two appends leaves a trace one batch short of the journal;  the resume of
+    section 4.8 REFUSES that directory and repairs nothing (ruling R12). *)
 let rec run_batches (lcfg : Legs.config) ~(progress : string -> unit)
-    ~(path : string) ~(batch : int) (first : int) (samples : Sample.t list) :
-    (unit, failure) result =
+    ~(path : string) ~(tpath : string) ~(batch : int) (first : int)
+    (samples : Sample.t list) : (unit, failure) result =
   match samples with
   | [] -> Ok ()
   | _ :: _ ->
@@ -282,10 +403,18 @@ let rec run_batches (lcfg : Legs.config) ~(progress : string -> unit)
         (Result.map_error
            (fun e -> Pf_write (Rust_leg.error_text e))
            (append_text path
-              (concat (map (fun l -> Journal.encode_line l ^ "\n") rows))))
+              (concat
+                 (map (fun e -> Journal.encode_line e.e_row ^ "\n") rows))))
         (fun () ->
-          progress (progress_text first chunk rows);
-          run_batches lcfg ~progress ~path ~batch (first + len chunk) rest)
+          Result.bind
+            (Result.map_error
+               (fun e -> Pf_trace (Rust_leg.error_text e))
+               (append_text tpath
+                  (concat (map (fun e -> entry_text e ^ "\n") rows))))
+            (fun () ->
+              progress (progress_text first chunk rows);
+              run_batches lcfg ~progress ~path ~tpath ~batch
+                (first + len chunk) rest))
 
 (** [want_of c sha] is the header this run asks for. *)
 let want_of (c : config) (sha : string) : Journal.header =
@@ -321,15 +450,29 @@ let clone_sha (lcfg : Legs.config) (c : config) : (string, failure) result =
     (Provenance.read_sha lcfg.Legs.l_rust ~out:c.p_dir ~name:"topcoat"
        ~repo:c.p_clone)
 
-(** [resume_open c lcfg path] decodes an EXISTING journal fully, checks its
-    header against the flags and answers how many sample lines are already
-    there.  The three flag fields are compared FIRST and the clone sha
-    SECOND, so a run with the wrong seed refuses before git is spawned and
-    before one byte under the run directory is rewritten.  When a flag field
-    is what disagreed, the request side of the text repeats the journal's own
-    sha, because the sha was not read and is not what disagreed. *)
-let resume_open (c : config) (lcfg : Legs.config) (path : string) :
-    (int, failure) result =
+(** [read_trace tpath] reads and decodes the whole trace. *)
+let read_trace (tpath : string) :
+    (Correspond.trace_header * Correspond.trace_line list, failure) result =
+  Result.bind
+    (Result.map_error
+       (fun e -> Pf_read (Rust_leg.error_text e))
+       (Rust_leg.read_file tpath))
+    (fun text ->
+      Result.map_error
+        (fun f ->
+          Pf_decode
+            ("the trace at " ^ tpath ^ " is broken: " ^ Correspond.failure_text f))
+        (Correspond.decode_trace (journal_lines text)))
+
+(** [resume_open c lcfg path tpath] decodes an EXISTING journal fully, checks
+    its header against the flags, checks that the trace beside it holds the
+    same number of sample lines, and answers how many are already there.  The
+    three flag fields are compared FIRST, the trace next and the clone sha
+    LAST, so a run with the wrong seed refuses before git is spawned and
+    before one byte under the run directory is rewritten.  A trace that is
+    missing or short is a REFUSAL and never a repair (ruling R12). *)
+let resume_open (c : config) (lcfg : Legs.config) (path : string)
+    (tpath : string) : (int, failure) result =
   Result.bind (read_journal path) (fun hl ->
       let found = fst hl in
       match () with
@@ -340,25 +483,49 @@ let resume_open (c : config) (lcfg : Legs.config) (path : string) :
       | () when not (String.equal found.Journal.jh_plant (Plant.name c.p_plant))
         ->
           Error (mismatch path found (want_of c found.Journal.jh_topcoat))
+      | () when not (Sys.file_exists tpath) ->
+          Error
+            (Pf_torn
+               ("the journal at " ^ path ^ " holds "
+              ^ nat_to_string (len (snd hl))
+              ^ " lines and there is no trace at " ^ tpath))
       | () ->
-          Result.bind (clone_sha lcfg c) (fun sha ->
+          Result.bind (read_trace tpath) (fun thl ->
+              let jk = len (snd hl) in
+              let tk = len (snd thl) in
               match () with
-              | () when String.equal sha found.Journal.jh_topcoat ->
-                  Ok (len (snd hl))
-              | () -> Error (mismatch path found (want_of c sha))))
+              | () when not (Int.equal jk tk) ->
+                  Error
+                    (Pf_torn
+                       ("the journal at " ^ path ^ " holds "
+                      ^ nat_to_string jk ^ " lines and the trace at " ^ tpath
+                      ^ " holds " ^ nat_to_string tk ^ " lines"))
+              | () ->
+                  Result.bind (clone_sha lcfg c) (fun sha ->
+                      match () with
+                      | () when String.equal sha found.Journal.jh_topcoat ->
+                          Ok jk
+                      | () -> Error (mismatch path found (want_of c sha)))))
 
-(** [fresh_open c lcfg path] captures the sha and writes the header of a new
-    journal.  [Rust_leg.write_file] is right here and only here: the file does
-    not exist, so its truncation is a creation. *)
-let fresh_open (c : config) (lcfg : Legs.config) (path : string) :
-    (int, failure) result =
+(** [fresh_open c lcfg path tpath] captures the sha and writes BOTH headers.
+    [Rust_leg.write_file] is right here and only here: neither file exists, so
+    its truncation is a creation.  The journal header is written first, so a
+    directory that holds a trace and no journal cannot arise. *)
+let fresh_open (c : config) (lcfg : Legs.config) (path : string)
+    (tpath : string) : (int, failure) result =
   Result.bind (clone_sha lcfg c) (fun sha ->
-      Result.map
-        (fun () -> 0)
+      let h = want_of c sha in
+      Result.bind
         (Result.map_error
            (fun e -> Pf_write (Rust_leg.error_text e))
-           (Rust_leg.write_file path
-              (Journal.encode_header (want_of c sha) ^ "\n"))))
+           (Rust_leg.write_file path (Journal.encode_header h ^ "\n")))
+        (fun () ->
+          Result.map
+            (fun () -> 0)
+            (Result.map_error
+               (fun e -> Pf_trace (Rust_leg.error_text e))
+               (Rust_leg.write_file tpath
+                  (Correspond.encode_trace_header (trace_header_of h) ^ "\n")))))
 
 (** [summary path] re-reads the journal FROM DISK and answers its summary.
     The summary is a function of the decoded journal and of nothing else, not
@@ -394,12 +561,12 @@ let finish (path : string) (n : int) : (string, failure) result =
               ^ " lines and the run asked for " ^ nat_to_string n)))
 
 (** [run ~progress c] is a whole run: make the directory, open or create the
-    journal, run the batches that are still missing, and answer the summary.
-    A directory that already holds k lines draws N samples and drops the first
-    k (section 4.3 is why that is the same corpus), so the batches of a
-    resumed run start at k and NOT at a multiple of the batch size. *)
+    journal and the trace, run the batches that are still missing, and answer
+    the summary.  The summary is a function of the JOURNAL alone, so its bytes
+    do not change in M32. *)
 let run ~(progress : string -> unit) (c : config) : (string, failure) result =
   let path = journal_path c.p_dir in
+  let tpath = trace_path c.p_dir in
   let lcfg = legs_config c in
   Result.bind
     (Result.map_error
@@ -408,14 +575,14 @@ let run ~(progress : string -> unit) (c : config) : (string, failure) result =
     (fun () ->
       Result.bind
         (match () with
-        | () when Sys.file_exists path -> resume_open c lcfg path
-        | () -> fresh_open c lcfg path)
+        | () when Sys.file_exists path -> resume_open c lcfg path tpath
+        | () -> fresh_open c lcfg path tpath)
         (fun k ->
           Result.bind
             (match () with
             | () when k >= c.p_samples -> Ok ()
             | () ->
-                run_batches lcfg ~progress ~path ~batch:c.p_batch k
+                run_batches lcfg ~progress ~path ~tpath ~batch:c.p_batch k
                   (drop k (draw c.p_samples c.p_seed)))
             (fun () -> finish path c.p_samples)))
 
