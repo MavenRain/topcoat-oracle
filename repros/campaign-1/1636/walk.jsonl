@@ -1,0 +1,8 @@
+{"index":1636,"oracle_sha":"75ed4c50a686aca1e26427c582d5e0813cdc782c","fuel":15}
+{"round":0,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way"]}
+{"round":1,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way"]}
+{"round":2,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way"]}
+{"round":3,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:two_way","diverge:message:two_way","diverge:message:two_way"]}
+{"round":4,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:two_way","diverge:message:two_way"]}
+{"round":5,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:two_way"]}
+{"round":6,"answers":["leg_fail:js:driver_error:signal_arity"]}

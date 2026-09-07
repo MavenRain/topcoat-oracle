@@ -1,0 +1,8 @@
+{"index":2716,"oracle_sha":"75ed4c50a686aca1e26427c582d5e0813cdc782c","fuel":15}
+{"round":0,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js"]}
+{"round":1,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js"]}
+{"round":2,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js"]}
+{"round":3,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:odd:js","diverge:message:odd:js","diverge:message:odd:js"]}
+{"round":4,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:odd:js","diverge:message:odd:js"]}
+{"round":5,"answers":["leg_fail:js:driver_error:signal_arity","diverge:message:odd:js"]}
+{"round":6,"answers":["leg_fail:js:driver_error:signal_arity"]}

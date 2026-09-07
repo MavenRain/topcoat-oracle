@@ -21,6 +21,10 @@ FUEL=24
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
+# Record the state of every repros/ directory before the two runs below, so
+# the verdict can prove the runs neither created nor changed anything there.
+./m30_verdict.sh --snapshot "$OUT/repros.before"
+
 # The build log is captured and then truncated.  A pipe into tail would hand
 # set -e the exit code of tail, so a failed build has to be tested directly.
 print -r -- "m30_gate: build"

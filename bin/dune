@@ -70,3 +70,8 @@
  (name m34_slice)
  (modules m34_slice)
  (libraries oracle_core oracle_shell unix))
+
+(executable
+ (name m35)
+ (modules m35)
+ (libraries oracle_core oracle_shell))

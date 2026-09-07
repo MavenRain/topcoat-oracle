@@ -387,15 +387,60 @@ corruption controls. Its source fingerprints bind the archived results to
 the implementation that produced them. It is an evidence replay gate;
 the four commands above perform the live campaign and plant checks.
 
+## Campaign repro stream
+
+M35 keeps one repro for every unexcused campaign divergence, including
+separate files for members of the same construct group. `repros/campaign-1/`
+contains the Markdown programs, raw Rust and JS witnesses, recorded greedy
+walks and a manifest that binds the exact mapping to source fingerprints.
+
+To check the archive, run `./m35_gate.sh`. The gate reconstructs each AST
+from the campaign seed, replays its recorded shrink decisions, recomputes
+the reference witness and verdict, and compares the complete repro text.
+Missing, duplicate or extra identities, changed fingerprints, incomplete
+walks and corrupted witnesses fail the gate. Each recorded answer must name
+a verdict class, and each walk must carry the oracle sha the manifest pins.
+This replays archived evidence; it does not execute the Rust or JS product
+legs.
+
+To run fresh minimization from the repository root:
+
+```sh
+mkdir -p _emit/m35/out
+python3 m34_verdict.py prepare . _emit/m34/check
+opam exec --switch=anvil-ocaml -- dune build bin/m35.exe
+python3 m35_verdict.py run .
+```
+
+For one sample, use `_build/default/bin/m35.exe emit
+_emit/m34/check/archive 34 . ../topcoat`. Outputs go under
+`_emit/m35/out/<index>/`. The stream pools up to 100 candidates per crate
+while retaining each case's candidate order, then earns a fresh unplanted
+witness for every final sample. Both the original and final measurements
+must preserve the original divergence channel and split. Fuel exhaustion
+and blind rounds cannot produce a successful repro.
+
+A fixpoint is relative to the shipped shrink rules. A body that stops using
+a declared signal can still fail the JS signal-arity check, and compiler
+or leg failures can exclude other candidates. These files record differences
+between the legs for triage; they do not establish which implementation is
+wrong or constitute filed upstream reports.
+
+`python3 m35_verdict.py publish .` replays all live outputs, then replays the
+staged copy it fingerprints, and atomically publishes a new
+`repros/campaign-1/` directory. The manifest pins the oracle sha that
+publication read from git. Publication requires the
+completed-run receipt written by `run`, with unchanged producer sources
+and executable. It refuses to overwrite an existing archive.
+
 ## Status
 
 Phase E in progress. The CTLK pipeline model is green, including the
 negative-control expectations (see DESIGN.md section 4).
 
-The gate ladder runs m20 through m34. M34 adds the first 5,000-sample mixed
-campaign, construct-signature grouping, a complete loss census and two
-additional corpus plant witnesses. M35 is the next milestone: minimize and
-emit a repro for every unexcused divergence.
+The gate ladder runs m20 through m35. M34 archives the first 5,000-sample
+campaign; M35 adds a checked minimized repro stream for its unexcused
+divergences. M36, the re-pin playbook, is next.
 
 ## License
 

@@ -10,6 +10,24 @@ CLONE_SHA=51caa01dca3a8f20bdacfa771b1b8ac8b6f2668a
 M20_SHA=c2803c680acbc1231ff8940eff2a064d8187cffd6d9a30391d057e5b4affa9ec
 RED=0
 
+# repros_state prints one line per repros/ directory and one digest line per
+# file below it, so a create, a delete, and an edit all change the output.
+# The m35 archive lives under repros/, so the m30 invariant is that the two
+# m30 runs leave this state byte for byte identical, not that the tree is bare.
+repros_state () {
+  fd -H -I -t d '^repros$' . | sort | while IFS= read -r d; do
+    print -r -- "dir $d"
+    fd -H -I -t f . "$d" -X shasum -a 256 -- | sort
+  done
+}
+
+# m30_gate.sh calls this mode once, before the two m30 runs.  The check at the
+# end of this file compares the file written here with the state after them.
+if [[ $1 == --snapshot ]]; then
+  repros_state > "$2"
+  exit 0
+fi
+
 mask () {
   sd -- '- topcoat-oracle: [0-9a-f]{40}' '- topcoat-oracle: SHA' < "$1" > "$1.m1"
   sd -- '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' 'SIGNALID' < "$1.m1" > "$1.mask"
@@ -256,8 +274,17 @@ LINES_JS=$(wc -l < "$OUT/$JS_PLANT/repro.md")
 CRATES=$(rg --files "$OUT" -g Cargo.toml | wc -l | tr -d ' ')
 [[ $CRATES -eq 16 ]] || { print -r -- "m30_verdict: RED crates $CRATES want 16"; RED=1 }
 
-REPROS=$(fd -H -I -t d '^repros$' . | wc -l | tr -d ' ')
-[[ $REPROS -eq 0 ]] || { print -r -- "m30_verdict: RED a repros/ directory was created"; RED=1 }
+repros_state > "$OUT/repros.after"
+if [[ ! -f "$OUT/repros.before" ]]; then
+  print -r -- "m30_verdict: RED no repros/ snapshot was taken before the m30 runs"
+  RED=1
+elif cmp -s "$OUT/repros.before" "$OUT/repros.after"; then
+  print -r -- "m30_verdict: ok repros untouched"
+else
+  print -r -- "m30_verdict: RED a repros/ directory was created or changed"
+  diff -u "$OUT/repros.before" "$OUT/repros.after" | head -n 20
+  RED=1
+fi
 
 print -r -- "m30_verdict: M20_SHA=$M20_SHA"
 [[ $RED -eq 0 ]] || exit 1

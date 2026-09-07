@@ -1,0 +1,1 @@
+{"case":0,"outcome":"panic","class":"expect","msg_hex":"63616c6c656420604f7074696f6e2e756e77726170282960206f6e206120604e6f6e65602076616c7565","js_form":"closure","hint":"expect","signals":[{"id":3,"value":{"t":"str","hex":"612262"}}]}

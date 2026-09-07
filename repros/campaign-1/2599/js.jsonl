@@ -1,0 +1,1 @@
+{"case":0,"outcome":"panic","class":"expect_err","msg_hex":"613a2030","js_form":"closure","hint":"expect_err","signals":[{"id":3,"value":{"t":"f64","hi":4232464005,"lo":4119935525}},{"id":4,"value":{"t":"f64","hi":1055193269,"lo":2296604913}}]}

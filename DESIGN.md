@@ -466,6 +466,42 @@ Phase E: campaign and delivery
   safely on the next invocation.
 - M35 repro stream: every non-Known divergence has a minimized repro
   file under repros/. Gate: 1:1 mapping.
+
+  `m35 stream <campaign> <root> <clone>` regenerates the validated M34
+  campaign, selects every Diverge row and measures the original verdict
+  again without a plant. Each case runs the M29 greedy shrink order;
+  pending requests are pooled into crates of at most 100 candidates.
+  A final fresh three-leg witness must preserve the original channel and
+  split. Only Fixpoint is publishable. The fuel bound is the original
+  sample size plus one, enough for every strictly decreasing walk.
+
+  Every seed/index has its own Markdown repro, raw Rust/JS witness and
+  recorded round answers under `repros/campaign-1/<index>/`. Construct
+  grouping does not discard member identities. Replay regenerates the
+  start AST, reconstructs the greedy walk, reinterprets the final sample,
+  checks the witness verdict and compares the entire rendered Markdown.
+  Source and artifact fingerprints bind these recorded answers to the live
+  evidence. Replay rebuilds each recorded answer as the verdict class that
+  wrote it, and refuses text that no class writes. The recorded oracle sha
+  must equal the sha the caller pins, so the provenance line of the repro
+  is checked and not only shaped. Replay does not re-execute the two
+  product legs.
+
+  The gate checks the exact divergence-to-directory mapping and rejects
+  truncated walks, substituted identities, duplicate identities, missing
+  witnesses, forged answer text, a substituted oracle sha and fuel changes.
+  Every corruption control names the refusal it expects, so a refusal for
+  another cause fails the control. Publication replays every live output
+  and then the staged copy that the manifest fingerprints, before an atomic
+  directory rename, and refuses an existing destination. The live runner
+  records a completion receipt only if producer sources and the executable
+  remain unchanged throughout the run; publication requires it.
+
+  The M29 declared-signal restriction remains: a body candidate that stops
+  using a signal can fail JS signal arity. Compiler and leg failures also
+  exclude candidates. Fixpoint claims are relative to these available
+  candidates, not global minimality. Repros are evidence for triage,
+  without automatic upstream attribution or filing.
 - M36 re-pin playbook: script bumps the topcoat SHA, re-runs, diffs
   verdicts. Gate: idempotent dry-run on the same SHA.
 - M37 README and docs final. Gate: quickstart reproduces smoke run.

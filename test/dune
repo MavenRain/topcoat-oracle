@@ -107,3 +107,11 @@
  (action
   (with-stdout-to campaign_runner.ok
    (run python3 %{dep:test_campaign_runner.py}))))
+
+(rule
+ (alias runtest)
+ (targets repro_stream.ok)
+ (deps test_repro_stream.py ../m35_verdict.py ../m34_verdict.py)
+ (action
+  (with-stdout-to repro_stream.ok
+   (run python3 %{dep:test_repro_stream.py}))))
