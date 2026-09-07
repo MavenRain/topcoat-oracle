@@ -50,3 +50,8 @@
  (name m32)
  (modules m32)
  (libraries oracle_core oracle_shell oracle_model))
+
+(executable
+ (name m33)
+ (modules m33)
+ (libraries oracle_core oracle_shell))

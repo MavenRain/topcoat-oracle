@@ -274,7 +274,7 @@ let rec rows_ok (rcfg : Ref_leg.config) (i : int) (ms : keep_mark list)
       | p :: prest, l :: lrest ->
           let rc = Legs.ref_cell_of rcfg (fst p) in
           let cs = Legs.cells_of (snd p) l rc.Legs.r_obs in
-          let v = Differ.verdict rc.Legs.r_mode (Differ.known_seed ()) cs in
+          let v = Differ.verdict rc.Legs.r_mode (Known.allow ()) cs in
           let vt = Differ.verdict_text v in
           {
             e_row =

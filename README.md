@@ -322,14 +322,33 @@ a party for the differ, so such a sample can agree with a missing rust cell,
 and the model has no `judge_agree` edge from a world whose rust leg crashed.
 The checker rejects such a row.  No run of the gate produces one today.
 
+## Known divergences
+
+`KNOWN.md` is the allowlist review document.  It is rendered from
+`core/known.ml` by `m33 render`, and `m33_gate.sh` compares the file with the
+render byte for byte.  Edit the entries, not the document.
+
+An entry excuses one channel of one row.  The walk reports the first unexcused
+channel, so an entry can never hide a later difference.  Each entry names a
+head, upstream or harness, and one citation: a path, a line range and a quote
+that `m33 cite` requires to be inside that range.
+
+The channel and the splits a row renders are load-bearing.  `Known.allow ()`
+fences every closure with them, so a predicate broadened past the rendered
+fields stops firing instead of excusing rows the document does not describe.
+
+The document also lists what is NOT excused: the documented differences no
+corpus row reaches yet, each naming its own head, and the four leg failure
+classes, which are losses and not divergences.
+
 ## Status
 
 Phase D in progress. The CTLK pipeline model is green, including the
 negative-control expectations (see DESIGN.md section 4).
 
-The gate ladder runs m20 through m32.  M32 is the newest milestone: a run emits
-a transition log beside its journal, and a checker validates the log against the
-model in both directions.
+The gate ladder runs m20 through m33.  M33 is the newest milestone: the
+known-divergence allowlist moved into `core/known.ml`, every entry carries a
+checked upstream or harness citation, and `KNOWN.md` is rendered from it.
 
 ## License
 

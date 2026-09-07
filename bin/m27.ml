@@ -225,11 +225,11 @@ let row_text (n : int) (d : Wire.decoded) (l : Wire_js.jline) (rc : refcell)
 let row_of (n : int) (d : Wire.decoded) (l : Wire_js.jline) (rc : refcell) : row
     =
   let cs = cells_of d l rc.r_obs in
-  let v = Differ.verdict rc.r_mode (Differ.known_seed ()) cs in
+  let v = Differ.verdict rc.r_mode (Known.seed ()) cs in
   {
     rw_text = row_text n d l rc v;
     rw_verdict = v;
-    rw_excused = Differ.excused rc.r_mode (Differ.known_seed ()) cs;
+    rw_excused = Differ.excused rc.r_mode (Known.seed ()) cs;
     rw_design = design_count rc.r_mode cs;
   }
 

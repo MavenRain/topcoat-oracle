@@ -189,7 +189,7 @@ let rec verdicts (cfg : Ref_leg.config) (ps : (Sample.t * Wire.decoded) list)
   | p :: ps1, l :: ls1 ->
       let rc = ref_cell_of cfg (fst p) in
       let cs = cells_of (snd p) l rc.r_obs in
-      Minimize.A_verdict (Differ.verdict rc.r_mode (Differ.known_seed ()) cs)
+      Minimize.A_verdict (Differ.verdict rc.r_mode (Known.allow ()) cs)
       :: verdicts cfg ps1 ls1
 
 (* One leg failure is a statement about the RUN and not about any one
@@ -321,7 +321,7 @@ let witness_of (r : refcell) (d : Wire.decoded) (l : Wire_js.jline) : witness =
     wi_js = l;
     wi_ref = r;
     wi_verdict =
-      Differ.verdict r.r_mode (Differ.known_seed ()) (cells_of d l r.r_obs);
+      Differ.verdict r.r_mode (Known.allow ()) (cells_of d l r.r_obs);
   }
 
 (* Run one sample once more, in witness_dir, and answer its three cells

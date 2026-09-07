@@ -399,6 +399,26 @@ Phase E: campaign and delivery
   which they disagree;  it repairs nothing.
 - M33 known-divergence allowlist, each entry backed by an upstream doc
   or source citation. Gate: allowlist review.
+
+  The entries live in `core/known.ml` with their citations.  `core/differ.ml`
+  keeps the walk and owns no entry.  An entry names its head:  upstream, when a
+  document or a source comment names the difference;  harness, when the
+  difference is a property of our legs or of our differ.  A difference that is
+  neither is a finding and keeps its Diverge verdict.
+
+  An entry excuses ONE channel of one row, so the walk still reports the first
+  unexcused channel.  The two entries M33 ships excuse a class channel whose
+  row then reports its message divergence, so no upstream text difference is
+  hidden by an excuse.
+
+  `KNOWN.md` is RENDERED from the entries by `m33 render` and the gate compares
+  the file with the render byte for byte, so the review document cannot drift
+  from the code.  The rendered channel and splits are load-bearing:
+  `Known.allow ()` fences every closure with the fields its entry declares, so
+  a predicate broadened past them stops firing.  `m33 cite` opens every cited
+  range and requires the quoted text to be inside it, and it refuses an empty
+  quote.  The journal format does not change, `bin/m27.ml` keeps
+  the frozen M26 seed list, and no leg is re-run by this gate.
 - M34 campaign 1: 5k+ mixed samples, dedup by construct signature.
   Gate: campaign report.
 - M35 repro stream: every non-Known divergence has a minimized repro

@@ -85,9 +85,10 @@
    - verdicts per case: exactly one.  BOUND.  The first unexcused
      divergence.  Case 5 diverges on class AND message and reports
      class.  A per-channel report is M31's shape, not M27's.
-   - known entries: one, [ i1 ].  BOUND.  [known_seed ()] below.  [] is
-     the no-allowlist input and every seed vector is tested both ways.
-     M33 grows the list from a file with upstream citations.
+   - known entries: two, [ I1; I2 ].  BOUND by core/known.ml, which owns
+     the entries and their citations since M33.  [] is the no-allowlist
+     input and every seed vector is tested both ways.  This module keeps
+     the walk and owns no entry.
    - printed rows: 48.  BOUND.  Four per case, in bin/m27.ml.  A count
      that is not 48 is a named verdict check.
    - seed table size: 12.  BOUND.  Hand-derived in the gate.  Growing
@@ -371,33 +372,31 @@ let is_class (c : cell) (q : Obs.panic_class) : bool =
       | Obs.O_value _ -> false
       | Obs.O_no_terminate -> false)
 
-(* I1 (M26 spec 8.6): on case 10 the reference names the panic class
-   expect_err because it evaluated the left operand first
-   (core/interp.ml:248-251), while both legs classify by message prefix
-   and fall back to the static hint, which shell/driver.ml:598-602 maps
-   to other.  Neither leg can do better with a static hint, so the
-   class channel of that shape is excused, and only that channel. *)
-let i1 () : known =
-  {
-    tag = Tag "I1";
-    applies =
-      (fun ch s cs ->
-        match ch with
-        | Ch_class -> (
-            match s with
-            | Odd L_ref ->
-                is_class cs.reference Obs.P_expect_err
-                && is_class cs.rust Obs.P_other
-                && is_class cs.js Obs.P_other
-            | Odd L_rust | Odd L_js | All_three | Two_way -> false)
-        | Ch_outcome | Ch_message | Ch_value | Ch_rendered | Ch_signals ->
-            false);
-  }
+(* True only when both cells are Present panics whose message bytes
+   differ.  An Absent cell and a non-panic outcome answer false, so the
+   predicate never claims a difference it cannot read.  core/known.ml
+   needs it: an entry that excuses the class channel of a row is sound
+   only while that row still diverges on the message channel. *)
+let msg_differs (a : cell) (b : cell) : bool =
+  match a with
+  | Absent _ -> false
+  | Present oa -> (
+      match b with
+      | Absent _ -> false
+      | Present ob ->
+          Option.fold ~none:false
+            ~some:(fun ma ->
+              Option.fold ~none:false
+                ~some:(fun mb -> not (String.equal ma mb))
+                (message_of ob.Obs.outcome))
+            (message_of oa.Obs.outcome))
 
-(* [] is the no-allowlist input, and the unit vectors run every seed
-   case both ways.  M33 relocates and grows the entries with upstream
-   citations. *)
-let known_seed () : known list = [ i1 () ]
+(* The ENTRIES moved to core/known.ml in M33, with their citations (M33
+   spec section 3).  [Known.allow ()] is the grown list the pipeline and
+   the minimizer pass, [Known.seed ()] is the frozen M26 list [ i1 ] the
+   m27 table and the m27 unit vectors are pinned against, and [] is still
+   the no-allowlist input.  This module keeps [type known], the walk and
+   [is_class]. *)
 
 (* ---------- Leg_fail, which precedes every comparison ---------- *)
 
@@ -467,6 +466,16 @@ let split_text s =
   | Two_way -> "two_way"
 
 let tag_text t = match t with Tag s -> s
+
+(* Equality on the two review-facing sums, spelled through the injective
+   name functions above, so core/ never needs a polymorphic compare.
+   core/known.ml uses them to make the DECLARED channel and splits of an
+   entry load-bearing instead of decorative. *)
+let channel_eq (a : channel) (b : channel) : bool =
+  String.equal (channel_name a) (channel_name b)
+
+let split_eq (a : split) (b : split) : bool =
+  String.equal (split_text a) (split_text b)
 
 (* Injective because the four verdict prefixes are distinct words, the
    six channel names are distinct, the three leg names are distinct,

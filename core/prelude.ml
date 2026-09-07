@@ -84,3 +84,30 @@ let rec assoc_opt eq key xs =
   match xs with
   | [] -> None
   | kv :: rest -> if eq (fst kv) key then Some (snd kv) else assoc_opt eq key rest
+
+(* ---------- substring search without a partial string accessor ---------- *)
+
+(* [prefix nee hay] is true when [nee] is a prefix of [hay]. Characters
+   are reached through Seq.uncons, which is total, so no String.sub and
+   no String.get is needed. The eager ~none: arms are constants. *)
+let rec prefix (nee : char Seq.t) (hay : char Seq.t) : bool =
+  Option.fold ~none:true
+    ~some:(fun (n, ns) ->
+      Option.fold ~none:false
+        ~some:(fun (h, hs) -> Char.equal n h && prefix ns hs)
+        (Seq.uncons hay))
+    (Seq.uncons nee)
+
+(* [occurs_seq hay nee] tries each suffix of [hay], including the empty
+   suffix, so the empty needle occurs in every haystack. *)
+let rec occurs_seq (hay : char Seq.t) (nee : char Seq.t) : bool =
+  prefix nee hay
+  || Option.fold ~none:false
+       ~some:(fun (_, rest) -> occurs_seq rest nee)
+       (Seq.uncons hay)
+
+(* The one substring matcher. bin/m33.ml matches a citation quote with it
+   and test/test_known.ml searches the render with it, so the CLI and the
+   test exercise the SAME code (M33 review finding F7). *)
+let occurs (hay : string) (nee : string) : bool =
+  occurs_seq (String.to_seq hay) (String.to_seq nee)

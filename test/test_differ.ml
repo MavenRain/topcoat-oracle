@@ -15,6 +15,11 @@
 open Prelude
 open Differ
 
+(* M33 moved the entries to core/known.ml.  These vectors pin the WALK
+   against the FROZEN M26 seed list, so the local name binds to
+   [Known.seed ()] and every expectation below is unchanged. *)
+let known_seed () : Differ.known list = Known.seed ()
+
 (* ---------- helpers ---------- *)
 
 let obs (o : Obs.outcome) (r : string) (sg : (int * Obs.value) list) :
