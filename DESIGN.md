@@ -421,6 +421,49 @@ Phase E: campaign and delivery
   the frozen M26 seed list, and no leg is re-run by this gate.
 - M34 campaign 1: 5k+ mixed samples, dedup by construct signature.
   Gate: campaign report.
+
+  `m34 report <dir>` reads an unplanted M31 journal and its M32 trace,
+  checks correspondence in both directions, and regenerates every sample
+  from the seed. Index, mode, size, environment and body must match before
+  the report uses the AST. The default minimum is 5,000 samples, both modes
+  must occur, and a run containing only losses is refused.
+
+  Construct signature v1 counts constructors in six separate maps: target,
+  body, input types, input initializers, signal types and signal initializers.
+  Names are sorted; literal values and variable ids do not enter the maps.
+  Divergences group by mode, full verdict and signature, in first appearance
+  order. Every member index remains in the report for M35. Known rows form
+  no group. All attempted samples, including every loss reason, remain in
+  the census and the explicitly labeled attempted-constructor coverage.
+
+  `m34_plants <campaign-dir> <out-dir>` selects agreeing corpus rows that
+  observably reach addition and string length. It runs fresh
+  unplanted and planted three-leg witnesses for both. The local plants
+  replace `f_add` with a sign-flipped result and `f_of_int` with a result
+  incremented by one. Each control must agree. Read-only witnesses must
+  diverge on value or rendered text with the reference as the odd leg. The
+  addition plant also accepts a signal-writing witness whose final signals
+  differ between the JS and reference legs. This corpus reaches addition
+  through signal increment. Its agreeing read-only samples discard addition
+  results or leave addition branches unexecuted.
+  The original M28 plants and fixed seed tables retain their behavior.
+
+  `research/campaign-1/` records the one-shot live campaign, its compressed
+  journal and trace, report, plant witnesses and source fingerprints.
+  `m34_gate.sh` checks those fingerprints, replays the archive, compares the
+  report byte for byte, independently checks the divergence membership and
+  loss census, and rejects corrupted programs, traces, plants, verdicts and
+  insufficient sample counts. Replaying this evidence runs no product leg.
+  A changed campaign source requires renewed evidence, never a silent skip.
+
+  The live run may finish a serial prefix with `m34_campaign.py`. Three
+  independent workers call `m34_slice` over the unchanged Pipeline batch
+  implementation, with distinct Cargo crate names and globally indexed
+  slices. The coordinator validates every slice and the whole joined
+  report before publication. Cached slices are bound to their prefix,
+  parameters, source files and executables. A publication marker retains
+  the validated join so an interrupted pair replacement can be completed
+  safely on the next invocation.
 - M35 repro stream: every non-Known divergence has a minimized repro
   file under repros/. Gate: 1:1 mapping.
 - M36 re-pin playbook: script bumps the topcoat SHA, re-runs, diffs

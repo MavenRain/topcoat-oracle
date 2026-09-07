@@ -341,14 +341,61 @@ The document also lists what is NOT excused: the documented differences no
 corpus row reaches yet, each naming its own head, and the four leg failure
 classes, which are losses and not divergences.
 
+## Campaign report
+
+The first 5,000-sample campaign and its complete loss census are recorded in
+[the campaign report](research/campaign-1/report.md). The compressed journal
+and model trace beside it retain every observation and sample identity.
+
+Run a new campaign from the repository root:
+
+    opam exec --switch=anvil-ocaml -- dune build bin/m31.exe bin/m34.exe bin/m34_plants.exe bin/m34_slice.exe
+    opam exec --switch=anvil-ocaml -- dune exec bin/m31.exe -- run _emit/m34/out/campaign1 --samples 5000 --seed 0x4d3334
+    opam exec --switch=anvil-ocaml -- dune exec bin/m34.exe -- report _emit/m34/out/campaign1
+    opam exec --switch=anvil-ocaml -- dune exec bin/m34_plants.exe -- _emit/m34/out/campaign1 _emit/m34/out/plants
+
+The run resumes an existing matching journal. Reporting starts no product
+leg: it checks the trace and regenerates the seed to verify every recorded
+program. Its default minimum is 5,000; `--minimum N` permits smaller reports
+for investigation and keeps the actual sample count visible. Both modes and
+at least one completed comparison are required.
+
+To finish an interrupted campaign at a complete 100-sample batch boundary,
+run `python3 m34_campaign.py` after the serial process has stopped. It runs
+three isolated batches at a time, retains completed slices for resume, and
+validates all indices, seeded programs and model transitions before joining
+the result. A source or executable change refuses cached slices. A retained
+publication marker allows the next invocation to finish an interrupted
+journal/trace replacement. `NODE_COMPILE_CACHE` may point to a local cache
+directory to reuse Node's TypeScript transforms without changing timeouts.
+
+Construct signature v1 has separate sorted constructor-count maps for target,
+body, input types and initializers, and signal types and initializers. It
+ignores literal values and variable ids. The grouping key also includes mode
+and the full divergence verdict. All member indices are retained, so grouping
+cannot discard a divergence that M35 should reproduce. Constructor coverage
+counts attempts, including losses; it does not claim those constructors ran.
+
+The two additional corpus plants change addition and string length in the
+reference interpreter. Each selected sample must agree in a fresh control,
+then diverge when its operation is changed. Addition is observed in the final
+signals of a writing sample; string length is observed in the value of a
+read-only sample, with the reference as the odd leg.
+
+`./m34_gate.sh` replays the archived campaign and checks its report and
+corruption controls. Its source fingerprints bind the archived results to
+the implementation that produced them. It is an evidence replay gate;
+the four commands above perform the live campaign and plant checks.
+
 ## Status
 
-Phase D in progress. The CTLK pipeline model is green, including the
+Phase E in progress. The CTLK pipeline model is green, including the
 negative-control expectations (see DESIGN.md section 4).
 
-The gate ladder runs m20 through m33.  M33 is the newest milestone: the
-known-divergence allowlist moved into `core/known.ml`, every entry carries a
-checked upstream or harness citation, and `KNOWN.md` is rendered from it.
+The gate ladder runs m20 through m34. M34 adds the first 5,000-sample mixed
+campaign, construct-signature grouping, a complete loss census and two
+additional corpus plant witnesses. M35 is the next milestone: minimize and
+emit a repro for every unexcused divergence.
 
 ## License
 

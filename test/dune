@@ -84,3 +84,26 @@
  (name test_known)
  (modules test_known)
  (libraries oracle_core alcotest))
+
+(test
+ (name test_campaign)
+ (modules test_campaign)
+ (libraries oracle_core alcotest))
+
+(test
+ (name test_campaign_report)
+ (modules test_campaign_report)
+ (libraries oracle_core oracle_shell oracle_model alcotest))
+
+(test
+ (name test_campaign_plants)
+ (modules test_campaign_plants)
+ (libraries oracle_core oracle_shell))
+
+(rule
+ (alias runtest)
+ (targets campaign_runner.ok)
+ (deps test_campaign_runner.py ../m34_campaign.py ../m34_verdict.py)
+ (action
+  (with-stdout-to campaign_runner.ok
+   (run python3 %{dep:test_campaign_runner.py}))))

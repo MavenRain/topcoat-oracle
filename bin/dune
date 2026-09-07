@@ -55,3 +55,18 @@
  (name m33)
  (modules m33)
  (libraries oracle_core oracle_shell))
+
+(executable
+ (name m34)
+ (modules m34)
+ (libraries oracle_core oracle_shell))
+
+(executable
+ (name m34_plants)
+ (modules m34_plants)
+ (libraries oracle_core oracle_shell))
+
+(executable
+ (name m34_slice)
+ (modules m34_slice)
+ (libraries oracle_core oracle_shell unix))
