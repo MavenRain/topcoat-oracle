@@ -32,12 +32,6 @@ mask_dir () {
   sd -- '^m32 check [^:]+:' 'm32 check DIR:' < "$1" > "$2"
 }
 
-# nojudge drops the LAST step of every trace line, so two traces can be
-# compared on their walks up to the judge step.
-nojudge () {
-  sd -- ',"[a-z_]+"\]\}$' ']}' < "$1" > "$2"
-}
-
 # 1  the three positive checks exit 0 and print nothing on stderr
 for d in straight resume planted; do
   [[ "$(cat "$OUT/$d.code")" == 0 ]] \
@@ -47,10 +41,10 @@ done
 
 # 2  the three reports are the hand derived goldens
 cat > "$OUT/straight.report.want" <<'REP'
-m32 check DIR: 500 lines, dropped_agree 77, dropped_known 0, minimizing_hi 10, gen_bug 0, leg_failed 413, oracle_bug 0
+m32 check DIR: 500 lines, dropped_agree 395, dropped_known 0, minimizing_hi 54, gen_bug 0, leg_failed 51, oracle_bug 0
 REP
 cat > "$OUT/planted.report.want" <<'REP'
-m32 check DIR: 100 lines, dropped_agree 14, dropped_known 0, minimizing_hi 3, gen_bug 0, leg_failed 83, oracle_bug 0
+m32 check DIR: 100 lines, dropped_agree 68, dropped_known 0, minimizing_hi 20, gen_bug 0, leg_failed 12, oracle_bug 0
 REP
 mask_dir "$OUT/straight.stdout" "$OUT/straight.report"
 mask_dir "$OUT/resume.stdout" "$OUT/resume.report"
@@ -105,28 +99,13 @@ for d in straight resume planted; do
   check "$d header fields" "$OUT/$d.thead.fields" "$OUT/$d.jhead.fields"
 done
 
-# 6  the planted trace walks like the straight trace up to the judge step,
-#    and its body is expected to differ on 0 lines.  m31_verdict.sh:96
-#    compares the planted journal against the straight journal byte for byte
-#    outside the f cell, and m31_verdict.sh:84-91 rules (R-B1) that all nine
-#    f cell flips lose the js leg, so no verdict moves.  A row's step names
-#    follow its cell presence and its verdict head, so no judge step moves
-#    either and the two bodies agree byte for byte.
-tail -n +2 "$M31OUT/straight/trace.jsonl" | head -n 100 > "$OUT/straight.trace.first100"
-tail -n +2 "$M31OUT/planted/trace.jsonl" > "$OUT/planted.trace.body"
-nojudge "$OUT/straight.trace.first100" "$OUT/straight.trace.first100.nj"
-nojudge "$OUT/planted.trace.body" "$OUT/planted.trace.body.nj"
-check "planted trace outside the judge step" \
-  "$OUT/planted.trace.body.nj" "$OUT/straight.trace.first100.nj"
-#    The bound below is the EXACT pin.  The first green ladder measured
-#    TFLIP 0 in "$OUT/planted.trace.flips", the value section 12 derives, so
-#    the closing stage replaced the loose first run bound with this line and
-#    re ran the gate to green (section 13, the closing step, and section 14
-#    item 8).  A measured count other than 0 is a finding: the derivation of
-#    section 12 is then what is wrong.
-TFLIP=$(diff "$OUT/straight.trace.first100" "$OUT/planted.trace.body" | rg -c -- '^>' || print -r -- 0)
-print -r -- "$TFLIP" > "$OUT/planted.trace.flips"
-[[ $TFLIP -eq 0 ]] || say_red "planted trace differs on $TFLIP lines want 0"
+# 6  M39 recovers eight rendered divergences from the reference sign plant.
+#    Derive their verdicts from the fixed witnesses, pin their exact indices
+#    and judge_agree -> judge_diverge transitions, and preserve every other
+#    trace step. The helper also tallies journal rows independently and
+#    binds all three report lines to the exact updated census.
+python3 -P "${0:A:h}/m32_plant_verdict.py" "$OUT" "$M31OUT" \
+  || say_red "planted trace transitions or journal/report census mismatch"
 
 # 7  the seven negatives exit 1 and print nothing on stdout;  the six awk
 #    mutations each changed exactly one line and N6 proved its substitution
@@ -192,13 +171,10 @@ done
 #     vocabulary the model knows.  The alternation closes over the WHOLE list,
 #     so a bogus second or later step is caught too, and the header is skipped
 #     before the match and not after.  The planted run writes its own
-#     trace.jsonl beside its own journal.jsonl: section 4.9's `run` binds
-#     `let tpath = trace_path c.p_dir` and section 4.8's `fresh_open` writes
-#     the trace header at that path.  The planted file needs its own guard,
-#     because check 6 reads it only after `nojudge` has dropped the last step
-#     of every line, so its 100 judge steps are outside every other byte
-#     comparison of this verdict.  The resumed trace needs none: check 4 pins
-#     it byte equal to the straight trace.  Either file failing is RED.
+#     trace.jsonl beside its own journal.jsonl. Check 6 pins all planted
+#     judge changes; this vocabulary check independently covers every step.
+#     The resumed trace needs none: check 4 pins it byte equal to the straight
+#     trace. Either file failing is RED.
 SN='(shape_ok|shape_fail|print_ok|compile_ok|compile_fail|exec_rust_ok|exec_rust_crash|exec_js_ok|exec_js_crash|exec_ref_ok|exec_ref_crash|judge_agree|judge_diverge|judge_known|judge_infra|file_unjudged|shrink|shrink_done|stay)'
 PAT='^\{"i":[0-9]+,"steps":\["'"$SN"'"(,"'"$SN"'")*\]\}$'
 for d in straight planted; do

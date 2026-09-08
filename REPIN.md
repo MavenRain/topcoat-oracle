@@ -94,9 +94,12 @@ change to the maintained pin and its expected behavior:
    the JS package lock and the citations in `core/known.ml`. Recompute any
    changed hand-derived gate expectations from the actual semantics. Do not
    excuse a divergence merely to restore green.
-4. Run the complete gate ladder. Producer changes invalidate the M34 and M35
-   source fingerprints and require fresh campaign and repro evidence. Keep
-   old archive provenance truthful; never globally replace historical SHAs.
+4. Run the complete gate ladder. M34 and M35 check retained original producer
+   bytes for historical archives and still perform live semantic replay.
+   Changed replay semantics may require a new archive; live production always
+   requires matching current source fingerprints and fresh evidence. Recheck
+   the Signal Debug envelope used for identity, which fails closed on drift.
+   Keep old provenance truthful; never globally replace historical SHAs.
 5. Record the comparison and renewed evidence, then stage the reviewed
    changes for the user's commit.
 

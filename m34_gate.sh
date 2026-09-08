@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Replay the archived M34 campaign without starting a product leg. The archive
-# is evidence from a real run; source fingerprints make stale evidence fail.
+# retains its original producer sources and their checked fingerprints.
 set -e
 ROOT=${0:A:h}
 cd "$ROOT"

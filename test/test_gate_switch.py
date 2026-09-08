@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = (
     'gates.sh', 'm20_dune.sh', 'm20_r2.sh', 'm20_gate.sh',
     *(f'm{number}_gate.sh' for number in range(22, 38)),
+    'm39_gate.sh',
 )
 
 FAKE_OPAM = r'''

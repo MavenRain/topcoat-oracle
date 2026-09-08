@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 
+import archive_sources
 import m34_verdict
 
 FILES = ("repro.md", "walk.jsonl", "rust.jsonl", "js.jsonl")
@@ -48,8 +49,9 @@ def sources(root):
     return {name: digest(root / name) for name in sorted(names)}
 
 
-def expected(root):
-    _, rows, _, _ = m34_verdict.load_evidence(root, root / "_emit/m34/check")
+def expected(root, *, historical=False):
+    _, rows, _, _ = m34_verdict.load_evidence(
+        root, root / "_emit/m34/check", historical=historical)
     return [r["i"] for r in rows if r["verdict"].startswith("diverge:")]
 
 
@@ -67,14 +69,20 @@ def replay(root, index, directory, oracle_sha, good=True, reason=None):
                 f"corruption accepted or wrong refusal for {index}: {result.stderr}")
 
 
-def check_mapping(root, indices, meta):
+def check_mapping(root, indices, meta, *, historical=False):
     require(meta["format"] == 1, "unsupported repro archive")
     require(meta["indices"] == indices, "divergence index mapping changed")
     require(len(set(indices)) == len(indices), "duplicate divergence index")
     require(is_sha40(meta["oracle_sha"]), "manifest oracle sha is not a sha40")
     require(meta["campaign_sha256"] == digest(root / "research/campaign-1/journal.jsonl.gz"),
             "campaign archive changed")
-    require(meta["sources"] == sources(root), "repro execution sources changed; renew evidence")
+    if historical:
+        # As in m34_verdict: verify() re-reads this manifest, so the equality is
+        # a mid-run mutation check. verify() checks the retained bytes.
+        require(meta["sources"] == archive_sources.verify(root)["repros"],
+                "repro source manifest changed during verification")
+    else:
+        require(meta["sources"] == sources(root), "repro execution sources changed; renew evidence")
     archive = root / "repros/campaign-1"
     require({p.name for p in archive.iterdir()} == {str(i) for i in indices} | {"manifest.json"},
             "missing or extra repro entries")
@@ -203,11 +211,11 @@ def controls(root, index, oracle_sha):
 
 
 def check(root):
-    indices = expected(root)
+    indices = expected(root, historical=True)
     require(bool(indices), "vacuous divergence mapping")
     archive = root / "repros/campaign-1"
-    meta = json.loads((archive / "manifest.json").read_text())
-    check_mapping(root, indices, meta)
+    meta = archive_sources.read_json(archive / "manifest.json")
+    check_mapping(root, indices, meta, historical=True)
     oracle_sha = meta["oracle_sha"]
     for i in indices:
         replay(root, i, archive / str(i), oracle_sha)

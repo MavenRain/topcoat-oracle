@@ -27,12 +27,14 @@ if [ "$CARGO_EXIT" -eq 0 ]; then
   echo "M20 GATE RED: cargo exit 0, zero errors (case_neg reject missing)"
   exit 1
 fi
-ERRS=$(rg -c 'error' "$LOG" 2>/dev/null || true)
+# Cargo progress can name crates such as thiserror and thiserror-impl.
+# Only a separated diagnostic token counts as an error.
+ERRS=$(rg -c '(^|[[:space:]:])error(\[E[0-9]+\])?([[:space:]:]|$)' "$LOG" 2>/dev/null || true)
 if [ -z "$ERRS" ] || [ "$ERRS" -eq 0 ]; then
   echo "M20 GATE RED: nonzero cargo exit but no error lines in $LOG"
   exit 1
 fi
-UNATTR=$(awk -F: '/error/ &&
+UNATTR=$(awk -F: '/(^|[[:space:]:])error(\[E[0-9]+\])?([[:space:]:]|$)/ &&
   $1 != "src/lib.rs" &&
   $0 !~ /^error: aborting due to/ &&
   $0 !~ /^error: could not compile/ { print }' "$LOG")
@@ -42,7 +44,7 @@ if [ -n "$UNATTR" ]; then
   exit 1
 fi
 BAD=$(awk -v lo="$LO" -v hi="$HI" -F: \
-  '$1 == "src/lib.rs" && $4 ~ /^ error/ { if ($2 + 0 < lo || $2 + 0 > hi) print }' \
+  '$1 == "src/lib.rs" && $4 ~ /^[[:space:]]*error(\[E[0-9]+\])?([[:space:]]|$)/ { if ($2 + 0 < lo || $2 + 0 > hi) print }' \
   "$LOG")
 if [ -n "$BAD" ]; then
   echo "M20 GATE RED: rustc errors outside case_neg span [$LO,$HI]:"
@@ -50,7 +52,7 @@ if [ -n "$BAD" ]; then
   exit 1
 fi
 NEG=$(awk -v lo="$LO" -v hi="$HI" -F: \
-  '$1 == "src/lib.rs" && $4 ~ /^ error/ { if ($2 + 0 >= lo && $2 + 0 <= hi) print }' \
+  '$1 == "src/lib.rs" && $4 ~ /^[[:space:]]*error(\[E[0-9]+\])?([[:space:]]|$)/ { if ($2 + 0 >= lo && $2 + 0 <= hi) print }' \
   "$LOG")
 if [ -z "$NEG" ]; then
   echo "M20 GATE RED: no case_neg reject inside span [$LO,$HI]; batch never reached rustc"

@@ -1,0 +1,141 @@
+{
+  "format": 1,
+  "header": {
+    "m31": 1,
+    "seed": 5059377,
+    "batch": 100,
+    "plant": "none",
+    "topcoat": "51caa01dca3a8f20bdacfa771b1b8ac8b6f2668a"
+  },
+  "samples": 500,
+  "comparison": "retained before, fresh M39 after",
+  "same_fields_in_every_row": [
+    "i",
+    "mode",
+    "size",
+    "env",
+    "body",
+    "r",
+    "f"
+  ],
+  "before": {
+    "agree": 77,
+    "diverge": 10,
+    "leg_fail": 413
+  },
+  "after": {
+    "agree": 395,
+    "diverge": 54,
+    "leg_fail": 51
+  },
+  "after_leg_fail_verdicts": {
+    "leg_fail:js:js_error:11:SyntaxError:24:Unexpected token 'while'": 47,
+    "leg_fail:js:skipped:no_js": 4
+  },
+  "before_journal_sha256": "9fdca1516c21d2b45508d4b511d748839b48d9ac3fc296cec5860c284c6fd294",
+  "after_journal_sha256": "95f695f28675c1ec43c1a2c96e1a55761560ed3aa0396e468632c85618d5895f",
+  "previously_adjudicated_now_lost": 0,
+  "previous_signal_arity": 394,
+  "signal_arity_now_adjudicated": 361,
+  "signal_arity_after_verdicts": {
+    "agree": 316,
+    "diverge:message:odd:js": 31,
+    "diverge:message:two_way": 10,
+    "diverge:outcome:odd:js": 2,
+    "diverge:signals:two_way": 1,
+    "diverge:value:odd:js": 1,
+    "leg_fail:js:js_error:11:SyntaxError:24:Unexpected token 'while'": 33
+  },
+  "correction_witnesses": [
+    {
+      "before": {
+        "i": 105,
+        "mode": "signal_writing",
+        "size": 46,
+        "verdict": "leg_fail:js:js_error:9:TypeError:26:prev.add is not a function",
+        "r": "Psignal_write:69:expressions in which a signal is written to cannot be run server-side|r0:|g3:s0:g4:f0:0;g5:s3:\u20ac",
+        "j": "js_error:9:TypeError:26:prev.add is not a function",
+        "f": "Vu|r0:|g3:s10:line\nbreakg4:f1072693248:0;g5:s3:\u20ac",
+        "env": [
+          "let v0: f64 = 0.1;",
+          "let v1: bool = false;",
+          "let v2: String = \"line\\nbreak\";",
+          "let v6: Result<f64, String> = Ok(1.0);",
+          "let v7: Result<String, f64> = Ok(\" pad \");",
+          "let v8: Option<f64> = Some(1e16);",
+          "let v9: Option<String> = Some(\" pad \");",
+          "let v3 = Signal::new(\"\");",
+          "let v4 = Signal::new(0.0);",
+          "let v5 = Signal::new(\"\u20ac\");"
+        ],
+        "body": "{ let v10 = { }; if (if v1 { v2.clone() } else if (if true { true } else { false }) { v2.clone() } else if true { v2.clone() } else { v2.clone() }).is_empty() { v5.set(v5.get()) } else { v3.set(v2.clone().to_owned()) }; v4.increment(); }"
+      },
+      "after": {
+        "i": 105,
+        "mode": "signal_writing",
+        "size": 46,
+        "verdict": "agree",
+        "r": "Psignal_write:69:expressions in which a signal is written to cannot be run server-side|r0:|g3:s0:g4:f0:0;g5:s3:\u20ac",
+        "j": "Vu|r0:|g3:s10:line\nbreakg4:f1072693248:0;g5:s3:\u20ac",
+        "f": "Vu|r0:|g3:s10:line\nbreakg4:f1072693248:0;g5:s3:\u20ac",
+        "env": [
+          "let v0: f64 = 0.1;",
+          "let v1: bool = false;",
+          "let v2: String = \"line\\nbreak\";",
+          "let v6: Result<f64, String> = Ok(1.0);",
+          "let v7: Result<String, f64> = Ok(\" pad \");",
+          "let v8: Option<f64> = Some(1e16);",
+          "let v9: Option<String> = Some(\" pad \");",
+          "let v3 = Signal::new(\"\");",
+          "let v4 = Signal::new(0.0);",
+          "let v5 = Signal::new(\"\u20ac\");"
+        ],
+        "body": "{ let v10 = { }; if (if v1 { v2.clone() } else if (if true { true } else { false }) { v2.clone() } else if true { v2.clone() } else { v2.clone() }).is_empty() { v5.set(v5.get()) } else { v3.set(v2.clone().to_owned()) }; v4.increment(); }"
+      }
+    },
+    {
+      "before": {
+        "i": 111,
+        "mode": "signal_writing",
+        "size": 24,
+        "verdict": "diverge:signals:two_way",
+        "r": "Psignal_write:69:expressions in which a signal is written to cannot be run server-side|r0:|g3:b1g4:b1",
+        "j": "Vu|r0:|g3:b0g4:b1",
+        "f": "Vu|r0:|g3:b1g4:b0",
+        "env": [
+          "let v0: f64 = -1.0;",
+          "let v1: bool = true;",
+          "let v2: String = \"\";",
+          "let v6: Result<f64, String> = Err(\"\ud83d\ude00\");",
+          "let v7: Result<String, f64> = Err(100.0);",
+          "let v8: Option<f64> = Some(0.0);",
+          "let v9: Option<String> = Some(\"hello\");",
+          "let v3 = Signal::new(true);",
+          "let v4 = Signal::new(true);"
+        ],
+        "body": "if ({ { }; let v10 = false; true }) { v4.toggle() } else if false { } else { v3.set(false) }"
+      },
+      "after": {
+        "i": 111,
+        "mode": "signal_writing",
+        "size": 24,
+        "verdict": "agree",
+        "r": "Psignal_write:69:expressions in which a signal is written to cannot be run server-side|r0:|g3:b1g4:b1",
+        "j": "Vu|r0:|g3:b1g4:b0",
+        "f": "Vu|r0:|g3:b1g4:b0",
+        "env": [
+          "let v0: f64 = -1.0;",
+          "let v1: bool = true;",
+          "let v2: String = \"\";",
+          "let v6: Result<f64, String> = Err(\"\ud83d\ude00\");",
+          "let v7: Result<String, f64> = Err(100.0);",
+          "let v8: Option<f64> = Some(0.0);",
+          "let v9: Option<String> = Some(\"hello\");",
+          "let v3 = Signal::new(true);",
+          "let v4 = Signal::new(true);"
+        ],
+        "body": "if ({ { }; let v10 = false; true }) { v4.toggle() } else if false { } else { v3.set(false) }"
+      }
+    }
+  ]
+}

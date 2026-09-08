@@ -247,8 +247,9 @@ Phase D: legs and differ
   that cold start grows with the load on the machine;  the cold start
   has its own budget and its expiry is a driver_error that names
   worker_startup.  The wire signal id is a
-  u32 and the JS registry key is a uuid, so the two are paired by
-  position and only the u32 leaves the driver.
+  u32 and the JS registry key is a uuid. M25 originally paired them by
+  position; M39 reads each binding's captured Debug UUID. Only the u32
+  leaves the driver.
 - M26 shell/js_leg.ml + shell/ref_leg.ml: spawn wrapper + adapter to
   obs.  Gate: three observations per seed.  The js wire has no js_hex
   and no js_consistent and its signal entries are two keys, so
@@ -454,7 +455,8 @@ Phase E: campaign and delivery
   report byte for byte, independently checks the divergence membership and
   loss census, and rejects corrupted programs, traces, plants, verdicts and
   insufficient sample counts. Replaying this evidence runs no product leg.
-  A changed campaign source requires renewed evidence, never a silent skip.
+  Fresh production with changed campaign sources requires renewed evidence.
+  M39 checks historical producer bytes separately from the live tree.
 
   The live run may finish a serial prefix with `m34_campaign.py`. Three
   independent workers call `m34_slice` over the unchanged Pipeline batch
@@ -480,8 +482,9 @@ Phase E: campaign and delivery
   grouping does not discard member identities. Replay regenerates the
   start AST, reconstructs the greedy walk, reinterprets the final sample,
   checks the witness verdict and compares the entire rendered Markdown.
-  Source and artifact fingerprints bind these recorded answers to the live
-  evidence. Replay rebuilds each recorded answer as the verdict class that
+  Source and artifact fingerprints bind these recorded answers to their
+  producer evidence. M39 retains the original source bytes for historical
+  verification. Replay rebuilds each recorded answer as the verdict class that
   wrote it, and refuses text that no class writes. The recorded oracle sha
   must equal the sha the caller pins, so the provenance line of the repro
   is checked and not only shaped. Replay does not re-execute the two
@@ -497,9 +500,10 @@ Phase E: campaign and delivery
   records a completion receipt only if producer sources and the executable
   remain unchanged throughout the run; publication requires it.
 
-  The M29 declared-signal restriction remains: a body candidate that stops
-  using a signal can fail JS signal arity. Compiler and leg failures also
-  exclude candidates. Fixpoint claims are relative to these available
+  The archived walks retain the M29 declared-signal restriction: a body
+  candidate that stopped using a signal could fail JS signal arity. M39
+  removes that restriction from fresh runs. Compiler and other leg failures
+  still exclude candidates. Fixpoint claims are relative to these available
   candidates, not global minimality. Repros are evidence for triage,
   without automatic upstream attribution or filing.
 - M36 re-pin playbook: script bumps the topcoat SHA, re-runs, diffs
@@ -548,8 +552,22 @@ Phase E: campaign and delivery
   campaign and repro fingerprints retain their original producers; these
   documentation and gate changes do not rewrite historical observations.
 
-Two milestone slots stay in reserve under the 40 cap for discovered
-work.
+- M39 signal identity: bind wire ids to the UUID in each declared signal's
+  captured Rust Debug record, preserving unused declarations and wire order.
+  JS text is not scanned for identity. Malformed Debug envelopes, invalid
+  wire ids and duplicate identities fail with named driver errors before
+  registry seeding. Gate: real-runtime unused/reordered/repeated signal cases,
+  writes across multiple types, decoy strings and invalid-identity controls.
+
+  Historical campaign and repro sources are retained as a deterministic gzip
+  JSON snapshot and checked against the unchanged source manifests. The
+  snapshot is data only. Existing live report reconstruction, greedy replay,
+  reference witness checks and corruption controls remain active. Changed
+  generators, shrinkers or reference semantics can still invalidate that
+  replay. Live run/publication retain their source and executable guards;
+  historical verification does not authorize reuse as fresh observations.
+
+One milestone slot stays in reserve under the 40 cap for discovered work.
 
 ## 6. Out of scope, v1
 

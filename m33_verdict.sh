@@ -49,33 +49,36 @@ ok W-string-order crates/topcoat-runtime/browser/src/surrogate/string.ts:16-20
 ok W-string-trim crates/topcoat-runtime/browser/src/surrogate/string.ts:7-14
 ok W-nan-null research/m23-driver-probe.md:253-255
 ok W-integral-f64 research/m23-driver-probe.md:256-259
-ok X-signal-arity driver-js/worker.mjs:190-198
+ok X-signal-arity driver-js/lib/signals.mjs:96-99
 ok X-no-js driver-js/lib/line.mjs:331-338
-ok X-js-syntax driver-js/worker.mjs:365-368
+ok X-js-syntax driver-js/worker.mjs:337-340
 ok X-js-type crates/topcoat-runtime/browser/src/surrogate/signal.ts:35-37
 CITE
 check "cite report" "$OUT/cite.stdout" "$OUT/cite.want"
 
-# 4  the straight census is the hand derived golden (M33 spec 10.3)
+# 4  the straight census includes the M39 comparisons recovered from the
+# original signal-arity losses. Check 14 derives it independently from rows.
 cat > "$OUT/straight.census.want" <<'CEN'
-agree 77
+agree 395
 diverge:class:two_way 1
-diverge:message:odd:js 1
-diverge:message:two_way 7
+diverge:message:odd:js 32
+diverge:message:two_way 17
+diverge:outcome:odd:js 2
 diverge:signals:two_way 1
-leg_fail:js:driver_error:signal_arity 394
-leg_fail:js:js_error:11:SyntaxError:24:Unexpected token 'while' 14
-leg_fail:js:js_error:9:TypeError:26:prev.add is not a function 1
+diverge:value:odd:js 1
+leg_fail:js:js_error:11:SyntaxError:24:Unexpected token 'while' 47
 leg_fail:js:skipped:no_js 4
 CEN
 check "straight census" "$OUT/straight.census" "$OUT/straight.census.want"
 
 # 5  the planted census is the hand derived golden
 cat > "$OUT/planted.census.want" <<'CEN'
-agree 14
-diverge:message:two_way 3
-leg_fail:js:driver_error:signal_arity 78
-leg_fail:js:js_error:11:SyntaxError:24:Unexpected token 'while' 5
+agree 68
+diverge:message:odd:js 7
+diverge:message:two_way 4
+diverge:outcome:odd:js 1
+diverge:rendered:odd:ref 8
+leg_fail:js:js_error:11:SyntaxError:24:Unexpected token 'while' 12
 CEN
 check "planted census" "$OUT/planted.census" "$OUT/planted.census.want"
 

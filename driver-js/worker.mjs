@@ -27,12 +27,12 @@ import { encodeValue } from "./lib/value.mjs";
 import { classify } from "./lib/classify.mjs";
 import { readLine, outLine } from "./lib/line.mjs";
 import { plantOfName, plantedContext } from "./lib/plant.mjs";
+import { pairSignals } from "./lib/signals.mjs";
 
 const ENCODER = new TextEncoder();
 const DETAIL_BYTES = 64;
 const CLONE_FLAG = "--clone";
 const SRC_SUBPATH = "crates/topcoat-runtime/browser/src/";
-const SIGNAL_ID = /\{"t":"Signal","id":"([0-9a-fA-F-]{36})"/g;
 
 /**
  * The clone browser/src directory as a URL.  pathToFileURL is used so
@@ -185,35 +185,6 @@ const decodeJs = (jsHex) => {
                 : { ok: true, value: decoded.value })(
               decodeEntities(text.value),
             ))(stringOfUtf8(bytes.value));
-};
-
-/**
- * Pair the wire u32 signal ids with the uuids the JS text names.  The
- * join is positional and guarded: a count mismatch is the named
- * signal_arity error and never a guess.
- * @param {string} js the decoded JS text
- * @param {readonly object[]} signals the wire signal records
- * @returns {{ok: true, value: readonly object[]} | {ok: false, error: string, detailHex: string}}
- *   the pairs, or the named driver error
- */
-const pairSignals = (js, signals) => {
-  const ids = [...js.matchAll(SIGNAL_ID)]
-    .map((match) => match[1])
-    .filter((id, at, all) => all.indexOf(id) === at);
-  return ids.length !== signals.length
-    ? {
-        ok: false,
-        error: "signal_arity",
-        detailHex: detailOf(`${ids.length} ${signals.length}`),
-      }
-    : {
-        ok: true,
-        value: Object.freeze(
-          signals.map((one, at) =>
-            Object.freeze({ id: one.id, uuid: ids[at], value: one.value }),
-          ),
-        ),
-      };
 };
 
 /**
@@ -519,7 +490,7 @@ const runRecord = (record) => {
                             ))(seedRegistry(cx, registry, pairs.value)))(
                       plantedContext(new Context(registry), PLANT, PLANT_KIT),
                     ))(new SignalRegistry()))(
-              pairSignals(js.value, record.signals),
+              pairSignals(record.signals),
             ))(decodeJs(jsHex));
 };
 

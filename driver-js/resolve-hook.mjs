@@ -6,7 +6,6 @@
 import { existsSync } from "node:fs";
 
 const SIGNALS_SPECIFIER = "@maverick-js/signals";
-const SRC_SUBPATH = "crates/topcoat-runtime/browser/src/";
 const HOOK_URL = import.meta.url;
 
 // One value crosses from initialize to resolve.  The binding is a
@@ -15,14 +14,15 @@ const HOOK_URL = import.meta.url;
 const holder = { config: null };
 
 /**
- * Receive the data argument of module.register.
- * @param {{cloneSrc: string}} data the clone root directory URL as href
+ * Receive the data argument of module.register.  loader.mjs canonicalizes
+ * the source directory, so the href is used as given: appending the source
+ * path here again would rebuild it lexically and miss a symlink below the
+ * clone root, which node has already resolved in every parentURL.
+ * @param {{cloneSrc: string}} data the clone browser/src directory URL as href
  * @returns {void}
  */
 export function initialize(data) {
-  holder.config = Object.freeze({
-    srcUrl: new URL(SRC_SUBPATH, data.cloneSrc).href,
-  });
+  holder.config = Object.freeze({ srcUrl: data.cloneSrc });
 }
 
 /**

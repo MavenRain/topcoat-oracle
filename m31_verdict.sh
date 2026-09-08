@@ -81,23 +81,12 @@ rg -q -- "\"topcoat\":\"$CLONE_SHA\"" "$PJ" \
   || say_red "planted header clone sha is not $CLONE_SHA"
 rg -q -- "\"topcoat\":\"$CLONE_SHA\"" "$RJ" \
   || say_red "resume header clone sha is not $CLONE_SHA"
-# The plant touches the reference leg only, so the planted journal is the
-# first 100 body lines of the straight journal with the "f" cell rewritten
-# where the plant flipped a rendered sign: every byte outside the "f" cell is
-# the straight journal's byte, and the "f" cell differs on exactly the nine
-# lines the hand derivation of 7.2 names (i = 7, 16, 24, 34, 60, 71, 72, 75
-# and 82).  All nine lose the js leg to the compound signal drop of section
-# 1.2, so no verdict moves and no diverge:rendered:odd:ref line can print at
-# this seed (ruling R-B1).
-tail -n +2 "$J" | head -n 100 > "$OUT/straight.first100"
-tail -n +2 "$PJ" > "$OUT/planted.body"
-sd -- '"f":"(\\.|[^"\\])*",' '' < "$OUT/straight.first100" > "$OUT/straight.first100.nof"
-sd -- '"f":"(\\.|[^"\\])*",' '' < "$OUT/planted.body" > "$OUT/planted.body.nof"
-check "planted journal outside the f cell" "$OUT/planted.body.nof" "$OUT/straight.first100.nof"
-rg -o -- '"f":"(\\.|[^"\\])*"' "$OUT/straight.first100" > "$OUT/straight.first100.f" || true
-rg -o -- '"f":"(\\.|[^"\\])*"' "$OUT/planted.body" > "$OUT/planted.body.f" || true
-FLIPPED=$(diff "$OUT/straight.first100.f" "$OUT/planted.body.f" | rg -- '^>' | wc -l | tr -d ' ')
-[[ $FLIPPED -eq 9 ]] || say_red "planted f cells differ on $FLIPPED lines want 9"
+# M39 recovers these previously lost comparisons. The independent checker
+# pins all nine float witnesses and their sign mutations, derives the eight
+# rendered splits and the one pre-existing outcome split, and requires every
+# program, environment and product-leg cell to remain unchanged.
+python3 -P "${0:A:h}/m31_plant_verdict.py" "$J" "$PJ" \
+  || say_red "planted journal reference mutation or verdict mismatch"
 rg -q -- '^m31 seed 0x4d3331 samples 100 batch 100 plant ref:display_sign topcoat [0-9a-f]{40}$' "$OUT/planted.stdout" \
   || say_red "planted summary head is wrong"
 

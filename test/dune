@@ -103,15 +103,23 @@
 (rule
  (alias runtest)
  (targets campaign_runner.ok)
- (deps test_campaign_runner.py ../m34_campaign.py ../m34_verdict.py)
+ (deps test_campaign_runner.py ../m34_campaign.py ../m34_verdict.py ../archive_sources.py)
  (action
   (with-stdout-to campaign_runner.ok
    (run python3 %{dep:test_campaign_runner.py}))))
 
 (rule
  (alias runtest)
+ (targets m39_verdict.ok)
+ (deps ../m39_verdict.py ../research/m39-signal-identity.json)
+ (action
+  (with-stdout-to m39_verdict.ok
+   (run python3 ../m39_verdict.py --selftest))))
+
+(rule
+ (alias runtest)
  (targets repro_stream.ok)
- (deps test_repro_stream.py ../m35_verdict.py ../m34_verdict.py)
+ (deps test_repro_stream.py ../m35_verdict.py ../m34_verdict.py ../archive_sources.py)
  (action
   (with-stdout-to repro_stream.ok
    (run python3 %{dep:test_repro_stream.py}))))

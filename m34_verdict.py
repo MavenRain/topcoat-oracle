@@ -11,6 +11,8 @@ import re
 import subprocess
 import sys
 
+import archive_sources
+
 
 def require(condition, message):
     if not condition:
@@ -25,25 +27,44 @@ def source_inventory(root):
     patterns = ["core/*.ml", "shell/*.ml", "model/*.ml", "driver-js/*.mjs",
                 "driver-js/lib/*.mjs", "driver-rs/**/*.rs"]
     names = {str(path.relative_to(root)) for pattern in patterns for path in root.glob(pattern)}
-    names.update(["bin/m31.ml", "bin/m34_slice.ml", "m34_campaign.py",
+    names.update(["bin/m31.ml", "bin/m34_slice.ml", "m34_campaign.py", "archive_sources.py",
                   "driver-js/package.json", "driver-js/package-lock.json"])
     return names
 
 
-def load_evidence(root, out):
+def inventory_gap(manifest, inventory):
+    """Name both sides of an inventory disagreement so the refusal is actionable."""
+    sides = [(label, sorted(names)) for label, names in
+             [("live producers not in the campaign manifest", inventory - manifest),
+              ("campaign manifest paths that are not live producers",
+               manifest - inventory)] if names]
+    return "; ".join(label + ": " + ", ".join(names) for label, names in sides)
+
+
+def load_evidence(root, out, *, historical=False):
     archive = root / "research/campaign-1"
-    meta = json.loads((archive / "provenance.json").read_text())
+    meta = archive_sources.read_json(archive / "provenance.json")
     require(meta["format"] == 1, "unsupported evidence format")
     require(re.fullmatch(r"[0-9a-f]{40}", meta["oracle_revision"]) is not None,
             "missing oracle revision")
-    require(set(meta["sources"]) == source_inventory(root), "incomplete source inventory")
-    for name, expected in meta["sources"].items():
-        path = Path(name)
-        require(not path.is_absolute() and ".." not in path.parts,
-                "unsafe source path")
-        require(sha((root / path).read_bytes()) == expected,
-                "campaign source changed: " + name + "; renew the evidence")
-    require(bool(meta["sources"]), "missing source fingerprints")
+    if historical:
+        # verify() re-reads this same manifest, so the equality only refuses a
+        # manifest edited between these two reads. The archived bytes and their
+        # digests are what verify() itself checks.
+        require(meta["sources"] == archive_sources.verify(root)["campaign"],
+                "campaign source manifest changed during verification")
+    else:
+        manifest, inventory = set(meta["sources"]), source_inventory(root)
+        # The refusal names the paths on both sides: a live producer the
+        # campaign predates is renewed by a new campaign, not by editing
+        # the archived manifest, and the reader needs to know which.
+        require(manifest == inventory,
+                "incomplete source inventory: " + inventory_gap(manifest, inventory))
+        for name, expected in meta["sources"].items():
+            archive_sources.source_name(name)
+            require(sha((root / name).read_bytes()) == expected,
+                    "campaign source changed: " + name + "; renew the evidence")
+        require(bool(meta["sources"]), "missing source fingerprints")
     for name in ["journal.jsonl.gz", "trace.jsonl.gz", "plants.txt"]:
         require(sha((archive / name).read_bytes()) == meta["files"][name],
                 "archive digest mismatch: " + name)
@@ -177,7 +198,7 @@ def main():
     require(len(sys.argv) == 4 and sys.argv[1] in ["prepare", "check"],
             "usage: m34_verdict.py prepare|check ROOT OUT")
     root, out = Path(sys.argv[2]).resolve(), Path(sys.argv[3]).resolve()
-    header, rows, jlines, tlines = load_evidence(root, out)
+    header, rows, jlines, tlines = load_evidence(root, out, historical=True)
     if sys.argv[1] == "check":
         check_report(header, rows, (out / "report.md").read_text())
         plants = (root / "research/campaign-1/plants.txt").read_text().splitlines()

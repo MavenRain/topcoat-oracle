@@ -80,6 +80,12 @@ type entry = {
    claim upstream for all five. *)
 type watch = { w_name : string; w_head : head; w_cite : cite; w_note : string list }
 
+(* A limit of the shipped EVIDENCE.  It is not a difference between the
+   legs, so it has no channel, no split and no citation: it says what the
+   archived campaign can and cannot answer.  [l_owner] names the milestone
+   that recorded the limit. *)
+type limit = { l_name : string; l_owner : string; l_note : string list }
+
 (* A leg failure class.  It is not a divergence and never gets an entry.
    [x_owner] names the milestone that owns the loss. *)
 type refused = {
@@ -450,16 +456,20 @@ let refusals () : refused list =
       x_cite =
         {
           c_root = R_repo;
-          c_path = "driver-js/worker.mjs";
-          c_lo = 190;
-          c_hi = 198;
-          c_quote = "signal_arity error and never a guess";
+          c_path = "driver-js/lib/signals.mjs";
+          c_lo = 96;
+          c_hi = 99;
+          c_quote =
+            "Pair every declared signal, preserving wire order and unused entries.";
         };
       x_note =
         [
-          "The js driver refuses a signal count mismatch by name.";
-          "The row is a leg failure and not a divergence.";
-          "394 of the 500 straight corpus rows are lost this way.";
+          "The archived campaign-1 report records 3946 signal_arity leg \
+           failures from the former positional pairing.";
+          "M39 pairs each wire id with its own Debug UUID, including unused \
+           bindings, so the current driver no longer reports signal_arity.";
+          "The archived rows remain leg failures, not divergences; the \
+           historical evidence is research/campaign-1/report.md.";
         ];
     };
     {
@@ -476,7 +486,7 @@ let refusals () : refused list =
       x_note =
         [
           "A line that carries no js hex is skipped by the js driver.";
-          "4 of the 500 straight corpus rows are lost this way.";
+          "The M39 500-row straight run still records 4 such skipped rows.";
         ];
     };
     {
@@ -486,8 +496,8 @@ let refusals () : refused list =
         {
           c_root = R_repo;
           c_path = "driver-js/worker.mjs";
-          c_lo = 365;
-          c_hi = 368;
+          c_lo = 337;
+          c_hi = 340;
           c_quote = "new Function(\"cx\", `return ${js};`)";
         };
       x_note =
@@ -497,7 +507,8 @@ let refusals () : refused list =
           "A statement-shaped body therefore does not parse, and node \
            names the first offending token, while.";
           "A leg crash walks into Leg_failed and reaches no channel.";
-          "14 of the 500 straight corpus rows crash this way.";
+          "The M39 500-row straight run records 47 such failures, \
+           including 33 previously hidden by signal_arity.";
         ];
     };
     {
@@ -517,7 +528,32 @@ let refusals () : refused list =
            value after a cast to F64.";
           "A signal that holds another type has no add, so node throws the \
            TypeError prev.add is not a function.";
-          "1 of the 500 straight corpus rows crashes this way.";
+          "The historical 500-row straight run had one such failure at \
+           case 105. M39 corrects its signal identities and it now agrees \
+           with the reference.";
+        ];
+    };
+  ]
+
+(* ---------- the evidence limits, which excuse nothing ---------- *)
+
+(** State what the archived campaign answers after M39, and what it does not. *)
+let limits () : limit list =
+  [
+    {
+      l_name = "L-campaign-1-historical";
+      l_owner = "M39";
+      l_note =
+        [
+          "After M39 the research/campaign-1 evidence is HISTORICAL: its \
+           provenance.json predates two producers of this slice, \
+           archive_sources.py and driver-js/lib/signals.mjs.";
+          "m35_verdict.py run and m35_verdict.py publish therefore refuse \
+           with incomplete source inventory, which names the missing and \
+           the extra paths, until a new campaign records the M39 producers.";
+          "m35_verdict.py check reads the historical branch, which verifies \
+           the archived producer bytes against research/archive-v1, and \
+           stays green on this evidence.";
         ];
     };
   ]
@@ -568,6 +604,11 @@ let watch_block (w : watch) : string =
       field "note" (joined "  " w.w_note);
     ]
 
+(** Show an evidence limit with its owner and no citation to open. *)
+let limit_block (l : limit) : string =
+  block l.l_name
+    [ field "owner" l.l_owner; field "note" (joined "  " l.l_note) ]
+
 (** Show who owns each leg loss beside the evidence for its refusal. *)
 let refused_block (x : refused) : string =
   block x.x_name
@@ -615,9 +656,15 @@ let render () : string =
       "A leg failure is not a divergence.  These ";
       nat_to_string (len (refusals ()));
       " classes stay leg_fail\n";
-      "verdicts.  Each row names the milestone that owns the loss.  Every\n";
-      "loss count below is a count over the M33 500-row straight corpus.\n";
+      "verdicts.  Each row names the milestone that owns the loss.  Its note\n";
+      "identifies the historical archive or current run behind each count.\n";
       concat (map refused_block (refusals ()));
+      "\n## Evidence limits\n";
+      "\n";
+      "A limit is a property of the shipped EVIDENCE and not of a\n";
+      "divergence.  It excuses no row, so it names no channel and opens no\n";
+      "citation.  Each row names the milestone that recorded it.\n";
+      concat (map limit_block (limits ()));
     ]
 
 (* ---------- what m33 cite needs, without reading a file ---------- *)

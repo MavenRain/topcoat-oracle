@@ -9,3 +9,5 @@ research/probes-rs/m23probe/target/
 research/probes-rs/m23probe/Cargo.lock
 research/probes-rs/m23probe/*.bin
 __pycache__/
+.kanon-exec/
+.kanon-wait/

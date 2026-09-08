@@ -110,7 +110,8 @@ def fixture(faults=None, predecessors=None):
                'predecessors': predecessors or {}}
         (root / 'mock.json').write_text(json.dumps(cfg))
         for name in ['core/interp.ml', 'bin/m31.ml', 'bin/m34_slice.ml',
-                     'm34_campaign.py', 'driver-js/package.json', 'driver-js/package-lock.json']:
+                     'm34_campaign.py', 'archive_sources.py',
+                     'driver-js/package.json', 'driver-js/package-lock.json']:
             path = root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('runtime-v1')

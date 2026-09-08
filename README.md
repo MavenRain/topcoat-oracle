@@ -77,9 +77,9 @@ model check must report 100 lines. `cmp` succeeds silently. A divergence is
 a measured result, and a `leg_fail` is a lost comparison. Neither makes the
 pipeline exit nonzero by itself. The quickstart gate requires at least 10
 completed comparisons, both sample modes, matching headers and contiguous
-indices, so a run consisting entirely of losses cannot pass. The measured
-census is 9 agreements and 6 divergences. That count also depends on the Node
-version, so the floor stays below it. The gate checks the exact census against
+indices, so a run consisting entirely of losses cannot pass. Before M39, the
+measured census was 9 agreements and 6 divergences. Counts also depend on the
+Node version, so the gate retains its comparison floor and checks the census against
 the whole M32 correspondence line instead, which reads the journal alone.
 
 `./m37_gate.sh` executes this exact documented block and checks those
@@ -98,10 +98,11 @@ print the same bytes by construction. It retains the outputs under
     ./gates.sh
 
 The ladder builds and tests the OCaml code, checks the CTLK model and ZxCaml
-subset, then runs the milestone gates through M37. M34 and M35 replay the
+subset, then runs the milestone gates through M39. M34 and M35 replay the
 checked campaign and repro archives; M36 and M37 earn fresh observations.
 Allow time for Rust compilation, Node workers and deliberate timeout cases.
-Successful completion ends with `GATES GREEN`.
+M39 checks signal identity through the actual browser runtime. Successful
+completion ends with `GATES GREEN`.
 
 ## Coverage report
 
@@ -475,7 +476,9 @@ read-only sample, with the reference as the odd leg.
 
 `./m34_gate.sh` replays the archived campaign and checks its report and
 corruption controls. Its source fingerprints bind the archived results to
-the implementation that produced them. It is an evidence replay gate;
+the original producer bytes retained in `research/archive-v1/sources.json.gz`.
+The snapshot is verified as data and never executed. Live report reconstruction
+and corruption controls still run. It is an evidence replay gate;
 the four commands above perform the live campaign and plant checks.
 
 ## Campaign repro stream
@@ -488,13 +491,14 @@ walks and a manifest that binds the exact mapping to source fingerprints.
 To check the archive, run `./m35_gate.sh`. The gate reconstructs each AST
 from the campaign seed, replays its recorded shrink decisions, recomputes
 the reference witness and verdict, and compares the complete repro text.
-Missing, duplicate or extra identities, changed fingerprints, incomplete
+Missing, duplicate or extra identities, corrupted retained sources, incomplete
 walks and corrupted witnesses fail the gate. Each recorded answer must name
 a verdict class, and each walk must carry the oracle sha the manifest pins.
 This replays archived evidence; it does not execute the Rust or JS product
 legs.
 
-To run fresh minimization from the repository root:
+For a campaign whose producer fingerprints match the current tree, the live
+minimization commands are:
 
 ```sh
 mkdir -p _emit/m35/out
@@ -502,6 +506,11 @@ python3 m34_verdict.py prepare . _emit/m34/check
 opam exec --switch=anvil-ocaml -- dune build bin/m35.exe
 python3 m35_verdict.py run .
 ```
+
+The shipped campaign-1 archive predates M39. Its historical checks pass using
+retained source bytes, but the live `run` and `publish` commands still refuse
+changed producers. Using the current driver for this workflow requires fresh
+campaign and repro evidence; historical observations are not relabeled.
 
 For one sample, use `_build/default/bin/m35.exe emit
 _emit/m34/check/archive 34 . ../topcoat`. Outputs go under
@@ -511,9 +520,10 @@ witness for every final sample. Both the original and final measurements
 must preserve the original divergence channel and split. Fuel exhaustion
 and blind rounds cannot produce a successful repro.
 
-A fixpoint is relative to the shipped shrink rules. A body that stops using
-a declared signal can still fail the JS signal-arity check, and compiler
-or leg failures can exclude other candidates. These files record differences
+A fixpoint is relative to the shipped shrink rules. The archived walks used
+the original driver, which could reject a body that stopped using a declared
+signal. M39 removes that restriction from fresh runs; compiler and other leg
+failures can still exclude candidates. These files record differences
 between the legs for triage; they do not establish which implementation is
 wrong or constitute filed upstream reports.
 
@@ -544,20 +554,34 @@ candidate is reviewed and adopted.
 
 ## Status
 
-The v1 milestone plan is complete through M38. The CTLK pipeline model
+The v1 milestone plan and the M39 signal identity follow-up are complete.
+The CTLK pipeline model
 includes negative-control expectations (see DESIGN.md section 4).
 
-The gate ladder runs m20 through m37. M34 archives the first 5,000-sample
+The gate ladder runs m20 through m37 and m39. M34 archives the first 5,000-sample
 campaign; M35 adds a checked minimized repro stream for its unexcused
 divergences; M36 compares target revisions with a checked same-SHA dry-run
 and a planted negative control.
 M37 executes the documented quickstart and checks replay and resume; M38
 records the full ladder result in [VALIDATION.md](VALIDATION.md).
 
+M39 binds each declared signal to the UUID in its own Rust Debug record.
+Unused declarations retain their initial values, repeated references alias
+the same signal, and reference order cannot swap identities. Malformed or
+duplicate identities fail with named driver errors. This depends on the
+pinned Topcoat Debug envelope; a changed envelope fails closed on re-pin.
+The loader supports symlinked checkouts and paths containing spaces.
+
+A fresh 500-sample validation at seed `0x4d3331` completed 449 comparisons,
+up from 87 in the retained run of the same programs. No previously completed
+comparison became a loss. The [measurement record](research/m39-signal-identity.json)
+contains the journal digests and two corrected signal-identity witnesses.
+
 The current limits are material: 4,197 of the first campaign's 5,000 attempts
-lost their comparison, mostly to JS signal arity. Shrink fixpoints are
-relative to the available candidates, and a body that stops reading a
-declared signal can fail that same arity check. Async/network semantics and
+lost their comparison, including 3,946 JS signal-arity failures. That historical
+census remains unchanged. Fresh M39 runs bind signals by identity and retain
+all declared signals. Shrink fixpoints remain relative to the available
+candidates. Async/network semantics and
 full DOM rendering remain outside v1. Repros support triage and require
 review before attributing a defect to a particular implementation.
 

@@ -34,5 +34,9 @@ zxlint --errors-only "$ROOT"/core/*.ml
 "$ROOT/m35_gate.sh"
 "$ROOT/m36_gate.sh"
 python3 -P -m unittest discover -s "$ROOT/test" -p test_gate_switch.py
+python3 -P "$ROOT/test/test_m20_verdict.py"
+python3 -P "$ROOT/test/test_m31_plant_verdict.py"
+python3 -P "$ROOT/test/test_m32_plant_verdict.py"
 "$ROOT/m37_gate.sh"
+"$ROOT/m39_gate.sh"
 echo "GATES GREEN"

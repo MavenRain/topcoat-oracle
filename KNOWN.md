@@ -75,33 +75,44 @@ excuses nothing.
 ## Not on the allowlist
 
 A leg failure is not a divergence.  These 4 classes stay leg_fail
-verdicts.  Each row names the milestone that owns the loss.  Every
-loss count below is a count over the M33 500-row straight corpus.
+verdicts.  Each row names the milestone that owns the loss.  Its note
+identifies the historical archive or current run behind each count.
 
 ### X-signal-arity
 
 - owner: M34
-- cite: repo driver-js/worker.mjs:190-198
-- quote: signal_arity error and never a guess
-- note: The js driver refuses a signal count mismatch by name.  The row is a leg failure and not a divergence.  394 of the 500 straight corpus rows are lost this way.
+- cite: repo driver-js/lib/signals.mjs:96-99
+- quote: Pair every declared signal, preserving wire order and unused entries.
+- note: The archived campaign-1 report records 3946 signal_arity leg failures from the former positional pairing.  M39 pairs each wire id with its own Debug UUID, including unused bindings, so the current driver no longer reports signal_arity.  The archived rows remain leg failures, not divergences; the historical evidence is research/campaign-1/report.md.
 
 ### X-no-js
 
 - owner: M34
 - cite: repo driver-js/lib/line.mjs:331-338
 - quote: "reason":"no_js"
-- note: A line that carries no js hex is skipped by the js driver.  4 of the 500 straight corpus rows are lost this way.
+- note: A line that carries no js hex is skipped by the js driver.  The M39 500-row straight run still records 4 such skipped rows.
 
 ### X-js-syntax
 
 - owner: M34
-- cite: repo driver-js/worker.mjs:365-368
+- cite: repo driver-js/worker.mjs:337-340
 - quote: new Function("cx", `return ${js};`)
-- note: The js driver compiles one EXPRESSION: it wraps the decoded text in return and hands it to new Function.  A statement-shaped body therefore does not parse, and node names the first offending token, while.  A leg crash walks into Leg_failed and reaches no channel.  14 of the 500 straight corpus rows crash this way.
+- note: The js driver compiles one EXPRESSION: it wraps the decoded text in return and hands it to new Function.  A statement-shaped body therefore does not parse, and node names the first offending token, while.  A leg crash walks into Leg_failed and reaches no channel.  The M39 500-row straight run records 47 such failures, including 33 previously hidden by signal_arity.
 
 ### X-js-type
 
 - owner: M34
 - cite: clone crates/topcoat-runtime/browser/src/surrogate/signal.ts:35-37
 - quote: (prev as F64).add(new F64(1))
-- note: The surrogate increment() calls add on the previous signal value after a cast to F64.  A signal that holds another type has no add, so node throws the TypeError prev.add is not a function.  1 of the 500 straight corpus rows crashes this way.
+- note: The surrogate increment() calls add on the previous signal value after a cast to F64.  A signal that holds another type has no add, so node throws the TypeError prev.add is not a function.  The historical 500-row straight run had one such failure at case 105. M39 corrects its signal identities and it now agrees with the reference.
+
+## Evidence limits
+
+A limit is a property of the shipped EVIDENCE and not of a
+divergence.  It excuses no row, so it names no channel and opens no
+citation.  Each row names the milestone that recorded it.
+
+### L-campaign-1-historical
+
+- owner: M39
+- note: After M39 the research/campaign-1 evidence is HISTORICAL: its provenance.json predates two producers of this slice, archive_sources.py and driver-js/lib/signals.mjs.  m35_verdict.py run and m35_verdict.py publish therefore refuse with incomplete source inventory, which names the missing and the extra paths, until a new campaign records the M39 producers.  m35_verdict.py check reads the historical branch, which verifies the archived producer bytes against research/archive-v1, and stays green on this evidence.
