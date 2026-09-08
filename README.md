@@ -433,14 +433,34 @@ publication read from git. Publication requires the
 completed-run receipt written by `run`, with unchanged producer sources
 and executable. It refuses to overwrite an existing archive.
 
+## Re-pin comparison
+
+[REPIN.md](REPIN.md) documents the revision comparison and adoption process.
+From the repository root, check the current SHA against a fresh local copy:
+
+```sh
+opam exec --switch=anvil-ocaml -- dune build bin/m31.exe bin/m32.exe m36/probe.exe
+python3 m36_repin.py --clone ../topcoat --to HEAD --out _emit/m36/same-sha --dry-run
+```
+
+The command reruns all three legs on identical programs and probes all five
+signal writers. It retains checked journals, traces, observations and a
+verdict diff. A repeated command verifies the completed evidence and returns
+the same report. To test another locally available revision, omit
+`--dry-run`, set `--to` and choose a fresh output directory. The maintained
+checkout and archived evidence stay at their recorded revisions until the
+candidate is reviewed and adopted.
+
 ## Status
 
 Phase E in progress. The CTLK pipeline model is green, including the
 negative-control expectations (see DESIGN.md section 4).
 
-The gate ladder runs m20 through m35. M34 archives the first 5,000-sample
+The gate ladder runs m20 through m36. M34 archives the first 5,000-sample
 campaign; M35 adds a checked minimized repro stream for its unexcused
-divergences. M36, the re-pin playbook, is next.
+divergences; M36 compares target revisions with a checked same-SHA dry-run
+and a planted negative control.
+M37, the final documentation and quickstart check, is next.
 
 ## License
 

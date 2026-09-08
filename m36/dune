@@ -1,0 +1,8 @@
+(executable
+ (name probe)
+ (modules probe)
+ (libraries oracle_core oracle_shell))
+
+(rule
+ (alias runtest)
+ (action (run %{exe:probe.exe} --self-test)))

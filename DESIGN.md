@@ -504,6 +504,28 @@ Phase E: campaign and delivery
   without automatic upstream attribution or filing.
 - M36 re-pin playbook: script bumps the topcoat SHA, re-runs, diffs
   verdicts. Gate: idempotent dry-run on the same SHA.
+
+  `m36_repin.py` checks out the candidate SHA in an isolated local clone,
+  then runs the same unplanted sample stream against the baseline and the
+  candidate. Each revision has an oracle/Topcoat sibling layout so the fixed
+  Rust dependency paths and the explicit JS clone select the same sources.
+  M32 checks both traces. The comparison requires equal sample identities
+  and reports every full verdict transition and canonical observation change,
+  including losses. Neither side may consist entirely of losses. The caller
+  states a floor of adjudicated rows per side, and the gate requires 15, the
+  count that its 100-sample request produced on 2026-09-07.
+
+  Five direct probes recheck the server-side panic and the expected JS and
+  reference final signals for set, toggle, increment, decrement and push_str.
+  A completed comparison binds source, executable and output fingerprints;
+  repeating it verifies that evidence and prints the same report. Dry-run
+  executes both sides at the same SHA and rejects any observed difference.
+  The script proposes a candidate pin without rewriting historical evidence
+  or the maintained checkout. REPIN.md documents adoption and renewed gates.
+  The M36 gate earns fresh same-SHA evidence and checks idempotent reuse. It
+  then repeats the comparison with the M28 reference plant on the candidate
+  leg run alone and fails if that planted run changes no verdict and no
+  observation.
 - M37 README and docs final. Gate: quickstart reproduces smoke run.
 - M38 final gates + staging: full ladder green, repo staged, commit
   message drafted for the user. Gate: git status clean-staged.
