@@ -16,12 +16,20 @@
 # measurements and 2 controls (M29 spec section 12).  The program writes
 # them;  this script only clears and creates the two plant directories.
 #
-# M28 residual R2, the shared preamble of the nine gate scripts, is out
-# of M29 scope (M29 spec section 1.2), so the preamble below repeats the
-# M28 one on purpose.
+# Select the ladder's switch explicitly before running any gate command.
 set -e
 ROOT="${0:A:h}"
-eval "$(opam env --switch=karamel-710 --set-switch)"
+SWITCH=anvil-ocaml
+opam switch list --short | rg -qx -- "$SWITCH" || {
+  print -r -- "m29_gate: RED opam switch $SWITCH is not installed"
+  exit 1
+}
+if ! TCO_OPAM_ENV=$(opam env --switch="$SWITCH" --set-switch); then
+  print -r -- "m29_gate: RED could not load opam switch $SWITCH"
+  exit 1
+fi
+eval "$TCO_OPAM_ENV"
+unset TCO_OPAM_ENV
 cd "$ROOT"
 
 CLONE="$ROOT/../topcoat"

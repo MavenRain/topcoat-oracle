@@ -8,9 +8,18 @@ set -e
 ROOT=${0:A:h}
 cd "$ROOT"
 
-# The same switch every gate from m20 on evals (m29_gate.sh:24), so a lone run
-# of this script matches the ladder.
-eval "$(opam env --switch=karamel-710 --set-switch)"
+# Select the ladder's switch explicitly for standalone runs too.
+SWITCH=anvil-ocaml
+opam switch list --short | rg -qx -- "$SWITCH" || {
+  print -r -- "m31_gate: RED opam switch $SWITCH is not installed"
+  exit 1
+}
+if ! TCO_OPAM_ENV=$(opam env --switch="$SWITCH" --set-switch); then
+  print -r -- "m31_gate: RED could not load opam switch $SWITCH"
+  exit 1
+fi
+eval "$TCO_OPAM_ENV"
+unset TCO_OPAM_ENV
 
 OUT=_emit/m31/out
 SEED=0x4d3331

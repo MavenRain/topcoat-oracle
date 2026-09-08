@@ -9,7 +9,8 @@ opam switch list --short | rg -qx -- "$SWITCH" || {
   print -r -- "m34_gate: RED opam switch $SWITCH is not installed"
   exit 1
 }
-eval "$(opam env --switch=$SWITCH --set-switch)"
+TCO_OPAM_ENV=$(opam env --switch=$SWITCH --set-switch) || exit 1
+eval "$TCO_OPAM_ENV"
 OUT=_emit/m34/check
 mkdir -p "$OUT"
 dune build bin/m34.exe bin/m34_plants.exe

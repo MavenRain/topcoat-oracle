@@ -14,7 +14,8 @@ opam switch list --short | rg -qx -- "$SWITCH" || {
   print -r -- "M36 GATE RED: opam switch $SWITCH is not installed" >&2
   exit 1
 }
-eval "$(opam env --switch=$SWITCH --set-switch)"
+TCO_OPAM_ENV=$(opam env --switch=$SWITCH --set-switch) || exit 1
+eval "$TCO_OPAM_ENV"
 dune build bin/m31.exe bin/m32.exe m36/probe.exe
 dune runtest m36 --force
 python3 -P test/test_m36_repin.py

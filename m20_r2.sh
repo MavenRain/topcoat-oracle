@@ -4,7 +4,17 @@
 # recorded, not fatal: probes are EXPECTED to contain rejects.
 set -e
 ROOT="${0:A:h}"
-eval "$(opam env --switch=karamel-710 --set-switch)"
+SWITCH=anvil-ocaml
+opam switch list --short | rg -qx -- "$SWITCH" || {
+  print -r -- "m20_r2: RED opam switch $SWITCH is not installed"
+  exit 1
+}
+if ! TCO_OPAM_ENV=$(opam env --switch="$SWITCH" --set-switch); then
+  print -r -- "m20_r2: RED could not load opam switch $SWITCH"
+  exit 1
+fi
+eval "$TCO_OPAM_ENV"
+unset TCO_OPAM_ENV
 cd "$ROOT"
 dune build --root "$ROOT" bin/emit_m20.exe
 EXE="$ROOT/_build/default/bin/emit_m20.exe"

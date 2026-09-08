@@ -10,7 +10,17 @@ set -e
 ROOT=${0:A:h}
 cd "$ROOT"
 
-eval "$(opam env --switch=karamel-710 --set-switch)"
+SWITCH=anvil-ocaml
+opam switch list --short | rg -qx -- "$SWITCH" || {
+  print -r -- "m32_gate: RED opam switch $SWITCH is not installed"
+  exit 1
+}
+if ! TCO_OPAM_ENV=$(opam env --switch="$SWITCH" --set-switch); then
+  print -r -- "m32_gate: RED could not load opam switch $SWITCH"
+  exit 1
+fi
+eval "$TCO_OPAM_ENV"
+unset TCO_OPAM_ENV
 
 OUT=_emit/m32/out
 M31OUT=_emit/m31/out

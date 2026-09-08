@@ -17,7 +17,17 @@
 #      json_report reaches the CLI unchecked.
 set -e
 ROOT="${0:A:h}"
-eval "$(opam env --switch=karamel-710 --set-switch)"
+SWITCH=anvil-ocaml
+opam switch list --short | rg -qx -- "$SWITCH" || {
+  print -r -- "m22_gate: RED opam switch $SWITCH is not installed"
+  exit 1
+}
+if ! TCO_OPAM_ENV=$(opam env --switch="$SWITCH" --set-switch); then
+  print -r -- "m22_gate: RED could not load opam switch $SWITCH"
+  exit 1
+fi
+eval "$TCO_OPAM_ENV"
+unset TCO_OPAM_ENV
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

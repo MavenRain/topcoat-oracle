@@ -527,8 +527,26 @@ Phase E: campaign and delivery
   leg run alone and fails if that planted run changes no verdict and no
   observation.
 - M37 README and docs final. Gate: quickstart reproduces smoke run.
+
+  The README declares the sibling target pin, toolchain and dependency
+  requirements, and contains the executable quickstart. `m37_gate.sh` runs
+  that exact block in a fresh directory: 100 samples at seed `0x4d3336`,
+  replay and M32 correspondence. It requires both modes and at least 10
+  adjudicated rows, checks the headers and contiguous identities, and reads
+  the whole M32 census against the journal it counted itself. It proves a
+  completed resume leaves the journal and trace byte-identical, that the
+  resume of a copy truncated to 50 samples rebuilds the untruncated bytes,
+  and that a replay of a copy at another path prints the documented summary.
+  Earlier gates now select the installed `anvil-ocaml` switch explicitly;
+  missing switches and failed environment selection abort before building.
+
 - M38 final gates + staging: full ladder green, repo staged, commit
   message drafted for the user. Gate: git status clean-staged.
+
+  The final ladder includes M37 and the switch-selection regression checks.
+  VALIDATION.md records the measured result and retained evidence. Archived
+  campaign and repro fingerprints retain their original producers; these
+  documentation and gate changes do not rewrite historical observations.
 
 Two milestone slots stay in reserve under the 40 cap for discovered
 work.

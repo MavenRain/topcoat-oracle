@@ -5,19 +5,103 @@ inside [Topcoat](https://github.com/tokio-rs/topcoat) (the `expr!`
 macro plus browser runtime in `crates/topcoat-runtime`).
 
 Three legs per generated expression: rustc-native, topcoat-emitted JS
-under node, and an OCaml reference interpreter. Divergences shrink to
-minimized repros under `repros/`.
+under Node, and an OCaml reference interpreter. The pipeline journals every
+attempt; a separate minimization step writes repros for unexcused divergences.
+The first campaign retains 5,000 attempts, 803 completed comparisons and
+103 minimized divergence repros. Losses remain visible in the
+[campaign report](research/campaign-1/report.md).
 
 - Design and milestone plan: [DESIGN.md](DESIGN.md)
 - Pipeline model (CTLK, checked by ctlk_topos): `model/`
 - Pinned study notes on the target: `research/`
+- Known differences: [KNOWN.md](KNOWN.md)
+- Revision comparison and adoption: [REPIN.md](REPIN.md)
+
+## Prerequisites
+
+Run commands from this repository root. Keep a clean Topcoat checkout at
+`../topcoat`, pinned to `51caa01dca3a8f20bdacfa771b1b8ac8b6f2668a`.
+Generated Rust crates use fixed relative dependency paths. The `--clone`
+flag selects JS sources and provenance; it does not relocate Rust dependencies.
+
+The quickstart needs:
+
+- An opam switch named `anvil-ocaml` with OCaml 5.3, Dune 3.13 or newer,
+  `ctlk_topos`, `qcheck`, `alcotest` and `qcheck-alcotest`. The model checker
+  links the separately installed `ctlk_topos` library; it is not vendored here.
+- Rustup with `nightly-2026-06-22`, selected explicitly by the Rust leg.
+- Node with `--experimental-transform-types` support (validated with
+  v23.10.0), npm, Git and the driver dependencies installed below.
+- zsh and ordinary Unix command-line tools. The complete gate ladder also
+  needs Python 3.11 or newer, `rg`, `sd`, `fd`, `zxlint` and `gateledger` on PATH.
+
+Install the pinned Rust toolchain and JS dependencies once if needed:
+
+```sh
+rustup toolchain install nightly-2026-06-22
+npm --prefix driver-js ci
+```
+
+Dependency installation and the first Cargo build can need network access.
+The M36 revision comparison runs Cargo offline, so populate its dependency
+cache before running the complete ladder. Each gate selects `anvil-ocaml`
+explicitly and refuses a missing switch.
+
+## Quickstart
+
+This runs 100 mixed samples through the three legs, replays their summary,
+and checks the journal against its model trace. Every invocation creates a
+fresh directory at the four-level depth required by the generated crates.
+
+<!-- m37-quickstart:start -->
+```sh
+opam exec --switch=anvil-ocaml -- dune build bin/m31.exe bin/m32.exe
+mkdir -p _emit/m37/out
+TCO_SMOKE_DIR=$(mktemp -d _emit/m37/out/smoke.XXXXXX)
+opam exec --switch=anvil-ocaml -- dune exec bin/m31.exe -- run "$TCO_SMOKE_DIR" \
+  --samples 100 --seed 0x4d3336 --batch 100 --root . --clone ../topcoat \
+  > "$TCO_SMOKE_DIR/run.txt"
+cat "$TCO_SMOKE_DIR/run.txt"
+opam exec --switch=anvil-ocaml -- dune exec bin/m31.exe -- replay "$TCO_SMOKE_DIR" \
+  > "$TCO_SMOKE_DIR/replay.txt"
+cmp "$TCO_SMOKE_DIR/run.txt" "$TCO_SMOKE_DIR/replay.txt"
+opam exec --switch=anvil-ocaml -- dune exec bin/m32.exe -- check "$TCO_SMOKE_DIR" \
+  > "$TCO_SMOKE_DIR/check.txt"
+cat "$TCO_SMOKE_DIR/check.txt"
+printf 'Quickstart artifacts: %s\n' "$TCO_SMOKE_DIR"
+```
+<!-- m37-quickstart:end -->
+
+The summary must name seed `0x4d3336`, 100 samples and plant `none`; the
+model check must report 100 lines. `cmp` succeeds silently. A divergence is
+a measured result, and a `leg_fail` is a lost comparison. Neither makes the
+pipeline exit nonzero by itself. The quickstart gate requires at least 10
+completed comparisons, both sample modes, matching headers and contiguous
+indices, so a run consisting entirely of losses cannot pass. The measured
+census is 9 agreements and 6 divergences. That count also depends on the Node
+version, so the floor stays below it. The gate checks the exact census against
+the whole M32 correspondence line instead, which reads the journal alone.
+
+`./m37_gate.sh` executes this exact documented block and checks those
+conditions. It re-invokes the completed run, which short-circuits to the
+summary and runs no leg, and requires the journal and the trace to stay
+byte-identical. It then truncates a copy of the evidence to 50 samples and
+resumes THAT copy: the resumed legs must rebuild the untruncated bytes. It
+also replays a second copy at another path, where the journal path is the
+only permitted difference, because a run and a replay of the same directory
+print the same bytes by construction. It retains the outputs under
+`_emit/m37/`. Use the printed directory to inspect `journal.jsonl`,
+`trace.jsonl` and the per-batch leg logs.
 
 ## Run the gates
 
     ./gates.sh
 
-Requires the karamel-710 opam switch with ctlk_topos, qcheck and
-alcotest installed, plus node and cargo on PATH.
+The ladder builds and tests the OCaml code, checks the CTLK model and ZxCaml
+subset, then runs the milestone gates through M37. M34 and M35 replay the
+checked campaign and repro archives; M36 and M37 earn fresh observations.
+Allow time for Rust compilation, Node workers and deliberate timeout cases.
+Successful completion ends with `GATES GREEN`.
 
 ## Coverage report
 
@@ -102,7 +186,7 @@ js_error for any other throw, a skipped line when the wire carries no
 JS, or a driver_error naming what could not be decoded.  Run it by hand
 with:
 
-    node --experimental-transform-types --import driver-js/loader.mjs \
+    node --experimental-transform-types --import ./driver-js/loader.mjs \
       driver-js/driver.mjs --in <jsonl> --out <jsonl>
 
 Flags: --clone <dir> (default ../topcoat), --timeout-ms N (default
@@ -220,8 +304,10 @@ error, so all three runs exit 0.  An unknown plant name, such as
 `bin/m29.exe` shrinks a diverging sample to a small one that diverges the
 same way.
 
-    m29 minimize <dir> --plant ref:display_sign|js:signal_get_plus_one \
+    dune exec bin/m29.exe -- minimize <dir> --plant <plant> \
         [--clone <dir>] [--root <dir>] [--fuel <n>]
+
+Here `<plant>` is `ref:display_sign` or `js:signal_get_plus_one`.
 
 One round asks the M19 shrinker for every candidate of the body at its
 target type, adds one candidate per binding the body never mentions, runs
@@ -274,6 +360,11 @@ on the command line would put a local path in a file meant for someone else.
 goldens, masking the oracle sha and the per crate signal id.
 
 ## Pipeline
+
+The short command names below refer to the built executables. For example,
+invoke `m31` as `opam exec --switch=anvil-ocaml -- dune exec bin/m31.exe --`
+and `m32` as `opam exec --switch=anvil-ocaml -- dune exec bin/m32.exe --`.
+They are not installed commands.
 
 `m31 run <dir> --samples N --seed S` draws N samples from one seed and runs
 them through the three legs in batches, appending one JSON line per sample to
@@ -453,14 +544,22 @@ candidate is reviewed and adopted.
 
 ## Status
 
-Phase E in progress. The CTLK pipeline model is green, including the
-negative-control expectations (see DESIGN.md section 4).
+The v1 milestone plan is complete through M38. The CTLK pipeline model
+includes negative-control expectations (see DESIGN.md section 4).
 
-The gate ladder runs m20 through m36. M34 archives the first 5,000-sample
+The gate ladder runs m20 through m37. M34 archives the first 5,000-sample
 campaign; M35 adds a checked minimized repro stream for its unexcused
 divergences; M36 compares target revisions with a checked same-SHA dry-run
 and a planted negative control.
-M37, the final documentation and quickstart check, is next.
+M37 executes the documented quickstart and checks replay and resume; M38
+records the full ladder result in [VALIDATION.md](VALIDATION.md).
+
+The current limits are material: 4,197 of the first campaign's 5,000 attempts
+lost their comparison, mostly to JS signal arity. Shrink fixpoints are
+relative to the available candidates, and a body that stops reading a
+declared signal can fail that same arity check. Async/network semantics and
+full DOM rendering remain outside v1. Repros support triage and require
+review before attributing a defect to a particular implementation.
 
 ## License
 
